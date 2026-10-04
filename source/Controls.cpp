@@ -45,11 +45,12 @@ const std::vector< unsigned int >& HostOrder( bool effect )
 			                                  PT_VESSEL, PT_DISH_WIDTH, PT_DEPTH, PT_STIR, PT_TIMELAPSE, PT_DETAIL,
 			                                  PT_DROP, PT_DROP_SIZE, PT_DROP_POSITION, PT_BREAK_WAVE, PT_SHAKE, PT_AUTO_DROP,
 			                                  PT_AUDIO, PT_AUDIO_DROPS, PT_AUDIO_SHAKES, PT_CLOCK_SYNC };
+		//The Over's light is the clip, filtered through the primaries: it has
+		//no Lightbox (the sweep found the declared one dead, AGENTS.md).
 		if( over )
-			order.push_back( PT_LIGHT_COUPLING );
-		order.insert( order.end(), { PT_LIGHTBOX, PT_EXPOSURE } );
-		if( over )
-			order.insert( order.end(), { PT_SEED_FROM_CLIP, PT_MIX } );
+			order.insert( order.end(), { PT_LIGHT_COUPLING, PT_EXPOSURE, PT_SEED_FROM_CLIP, PT_MIX } );
+		else
+			order.insert( order.end(), { PT_LIGHTBOX, PT_EXPOSURE } );
 		for( unsigned int id = PT_ABOUT_TEXT; id < PT_COUNT; ++id )
 			order.push_back( id );
 		return order;

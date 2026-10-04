@@ -9,9 +9,10 @@ uniform whose name does not match the C++ is silently ignored --
 renders.
 
 Each control is swept where it can act (the CONTEXT column): Catalyst and
-Break Wave in the BZ reaction (the default), Clock Sync on the iodine clock
-with a dose due inside the render, Light Coupling with Ru(bpy)3 through the
-Over, the audio controls with a beat fed in. An option parameter reads back
+Break Wave in the BZ reaction (the default), the wave controls once a wave
+exists, Clock Sync on the iodine clock with a dose due inside the render,
+Light Coupling with Ru(bpy)3 through the Over, the shakes on the blue bottle,
+the audio controls with a beat fed in. An option parameter reads back
 0..1 whatever its count (the fleet's trap), so options are set here by
 element index. A control whose ends differ by less than `--floor` (mean
 8-bit difference per channel) is reported as barely alive.
@@ -39,14 +40,22 @@ import zlib
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
 # name -> (low setting, high setting, context settings, extra flags)
+#
+# The default render is 80 chemical seconds of a fresh BZ dish at 30x, which is
+# before its pacemakers have made a target: controls that act on waves (a
+# Drop's wave, a Break Wave, a Seed's pacemakers, Stir, Detail) are swept at
+# Time-lapse 0.8 (96x: 256 chemical seconds), and a Break Wave is pressed at
+# frame 100, once the drop's wave exists ("Name=V@F"). Shakes are swept on
+# the blue bottle, where a shake turns the layer blue.
+LATER = "Time-lapse=0.8"
 SWEEP = {
     "Reaction": ("0", "7", [], []),
     "Catalyst": ("0", "2", [], []),
     # Flow washes the clock's iodine out; a Batch dish keeps it.
     "Reactor": ("0", "1", ["Reaction=2", "Reductant=0", "Time-lapse=1"], []),
     # A Reset takes the next soup of pacemakers.
-    "Reset": ("0", "1", [], []),
-    "Seed": ("1", "2", [], []),
+    "Reset": ("0", "1", [LATER], []),
+    "Seed": ("1", "2", [LATER], []),
     "Oxidant": ("0.2", "0.8", [], []),
     "Acid or Base": ("0.2", "0.8", [], []),
     "Reductant": ("0.2", "0.8", [], []),
@@ -54,20 +63,22 @@ SWEEP = {
     "Vessel": ("0", "1", [], []),
     "Dish Width": ("0.2", "0.8", [], []),
     "Depth": ("0.2", "0.8", [], []),
-    "Stir": ("0", "1", [], []),
+    "Stir": ("0", "1", [LATER], []),
     "Time-lapse": ("0.2", "0.9", [], []),
-    "Detail": ("0", "3", [], []),
-    "Drop": ("0", "1", ["Drop Position=1"], []),
-    "Drop Size": ("0", "1", ["Drop=1", "Drop Position=1"], []),
-    "Drop Position": ("0", "1", ["Drop=1"], []),
-    "Break Wave": ("0", "1", [], []),
-    "Shake": ("0", "1", [], []),
+    "Detail": ("0", "3", [LATER], []),
+    # A 20 mm drop in a 28 mm dish: the wave covers the picture, on the Over's
+    # dark card too.
+    "Drop": ("0", "1", ["Drop Position=1", "Drop Size=1", "Dish Width=0.3", LATER], []),
+    "Drop Size": ("0", "1", ["Drop=1", "Drop Position=1", "Dish Width=0.3", LATER], []),
+    "Drop Position": ("0", "1", ["Drop=1", "Drop Size=1", "Dish Width=0.3", LATER], []),
+    "Break Wave": ("0@100", "1@100", ["Drop=1", "Drop Position=1", "Drop Size=1", LATER], []),
+    "Shake": ("0", "1", ["Reaction=5"], []),
     "Auto Drop": ("0", "1", ["Drop Position=1"], []),
     "Audio Drops": ("0", "1", ["Drop Position=1"], ["beat"]),
-    "Audio Shakes": ("0", "1", [], ["beat"]),
+    "Audio Shakes": ("0", "1", ["Reaction=5"], ["beat"]),
     # The clock switches at 25 chemical seconds and the synced dose clears it.
     "Clock Sync": ("0", "2", ["Reaction=2"], []),
-    "Light Coupling": ("0", "1", ["Catalyst=1", "Drop=1", "Drop Position=1"], []),
+    "Light Coupling": ("0", "1", ["Catalyst=1", "Drop=1", "Drop Position=1", "Drop Size=1", LATER], []),
     "Lightbox": ("0", "2", [], []),
     "Exposure": ("0.2", "0.8", [], []),
     "Seed From Clip": ("0", "1", [], []),

@@ -3655,7 +3655,7 @@ int main( int argc, char** argv )
 			             "  --frames N        frames before reading back (default 300: 5 s)\n"
 			             "  --fps N           the synthetic clock's rate (default 60)\n"
 			             "  --beat            feed a beat every half second into the Audio buffer\n"
-			             "  --set \"Name=V\"    set a parameter by its display name. Repeatable.\n"
+			             "  --set \"Name=V\"    set a parameter by its display name; \"Name=V@F\" sets it at frame F. Repeatable.\n"
 			             "  --list            every parameter and its default\n\n"
 			             "  checks (GL): --state --prime --resize --timebase --beer --over-check --oregonator --fieldnoyes --spiral --photo\n"
 			             "               --clock --sync --briggs --traffic --bluebottle --chameleon --stir --units --turing\n"
@@ -3767,8 +3767,17 @@ int main( int argc, char** argv )
 			result = 1;
 		else
 		{
+			//"Name=V" applies before the first frame; "Name=V@F" at frame F (an
+			//event that needs something to act on: a Break Wave once a wave exists).
+			std::vector< std::pair< int, std::string > > scheduled;
 			for( const std::string& setting : settings )
 			{
+				const size_t at = setting.find( '@' );
+				if( at != std::string::npos )
+				{
+					scheduled.emplace_back( std::atoi( setting.c_str() + at + 1 ), setting.substr( 0, at ) );
+					continue;
+				}
 				std::string error;
 				if( !applySetting( rig.plugin, setting, error ) )
 				{
@@ -3776,9 +3785,26 @@ int main( int argc, char** argv )
 					return 2;
 				}
 			}
+			std::stable_sort( scheduled.begin(), scheduled.end(), []( const auto& a, const auto& b ) { return a.first < b.first; } );
 			if( beat )
 				rig.feed = AudioFeed::Pulses;
-			if( !rig.Render( std::max( frames, 1 ) ) )
+			int rendered = 0;
+			bool ok      = true;
+			for( const auto& [ frame, setting ] : scheduled )
+			{
+				if( frame > rendered && !( ok = rig.Render( frame - rendered ) ) )
+					break;
+				rendered = std::max( rendered, frame );
+				std::string error;
+				if( !applySetting( rig.plugin, setting, error ) )
+				{
+					std::fprintf( stderr, "--set %s@%d: %s\n", setting.c_str(), frame, error.c_str() );
+					return 2;
+				}
+			}
+			if( ok && std::max( frames, 1 ) > rendered )
+				ok = rig.Render( std::max( frames, 1 ) - rendered );
+			if( !ok )
 				result = 1;
 			else if( writePng( outPath, width, height, rig.Output() ) )
 				std::printf( "wrote %s -- %dx%d, %d frames at %g fps (%.2f s), %.1f chemical s, %lld substeps, %lld capped frames\n", outPath.c_str(), width, height,

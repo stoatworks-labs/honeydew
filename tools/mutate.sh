@@ -21,7 +21,7 @@ trap 'rm -rf "$WORK"' EXIT
 MUTANTS=(
 	"source/Shaders.cpp|return rate * vec3( ( q * s.y - s.x * s.y + s.x * ( 1.0 - s.x ) ) / eps,|return rate * vec3( ( q * s.y - s.x * s.y + s.x * ( 1.0 + s.x ) ) / eps,|--oregonator|GLSL: the Oregonator's autocatalysis unbounded, 1.0 - x -> 1.0 + x"
 	"source/Shaders.cpp|float T = exp( -2.302585092994046 * A * depth );|float T = exp( -2.302585092994046 * A + depth );|--beer|GLSL: Beer-Lambert's depth added instead of multiplied, * -> +"
-	"source/Shaders.cpp|I3 -= x;|I3 += x;|--clock|GLSL: the thiosulfate makes iodine instead of taking it, -= -> +="
+	"source/Shaders.cpp|I2 -= x;|I2 += x;|--clock|GLSL: the thiosulfate makes iodine instead of taking it, -= -> +="
 	"source/Transport.h|while( wait < lead )|while( wait > lead )|--transport|C++: the beat lead skips every boundary but the first, < -> >"
 	"source/Chemistry.cpp|return -std::log( 1.0 - S0 / ( 2.0 * H0 ) ) / ( ClockRateConstant( H ) * I0 );|return -std::log( 1.0 - S0 / ( 2.0 + H0 ) ) / ( ClockRateConstant( H ) * I0 );|--clock|C++: the closed form the check holds the plugin to, * -> + (a wrong reference is caught too)"
 )
