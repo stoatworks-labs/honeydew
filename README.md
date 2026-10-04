@@ -2,8 +2,9 @@
 
 > **AI-assisted project.** This codebase was created with [Claude](https://claude.com/claude-code)
 > (Anthropic), directed and reviewed by a human author. It has **never been loaded into
-> Resolume**; the bundles are read and driven by [oxbow](https://github.com/stoatworks-labs/oxbow),
-> a real FFGL host that is not Resolume. Everything below is measured by an offline
+> Resolume on macOS**; there the bundles are read and driven by [oxbow](https://github.com/stoatworks-labs/oxbow),
+> a real FFGL host that is not Resolume. On Windows both plugins pass the fleet's Arena gate in
+> Resolume Arena 7.27.1 on software rendering (see [Status](#status)). Everything below is measured by an offline
 > harness that drives the real plugin classes in a headless GL context on a synthetic
 > clock, on this Mac's GPU at two rasters, and reads the chemistry back out of the
 > plugin's own state and pixels. The chemistry is not asserted but held to its own
@@ -35,6 +36,38 @@ annihilate](docs/hero.png)
 wide ferroin BZ layer in Flow, pacemakers firing target waves that annihilate where
 they meet. Rendered by the plugin's offline harness (`hdtest`), not captured from
 Resolume.</sub>
+
+<!-- downloads:start -->
+
+## Download
+
+**[v0.1.0](https://github.com/stoatworks-labs/honeydew/releases/tag/v0.1.0)** — prebuilt for macOS and Windows. Pick your platform:
+
+<details>
+<summary><b>macOS</b> — Universal (Apple Silicon + Intel)</summary>
+
+| Build | Download | Size |
+| --- | --- | --- |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`honeydew-0.1.0-macos-universal.dmg`](https://github.com/stoatworks-labs/honeydew/releases/download/v0.1.0/honeydew-0.1.0-macos-universal.dmg) | 642 KB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`honeydew-macos-universal.zip`](https://github.com/stoatworks-labs/honeydew/releases/latest/download/honeydew-macos-universal.zip) | 572 KB |
+
+</details>
+
+<details>
+<summary><b>Windows</b> — x64</summary>
+
+| Build | Download | Size |
+| --- | --- | --- |
+| x64 · .exe installer | [`honeydew-0.1.0-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/honeydew/releases/download/v0.1.0/honeydew-0.1.0-windows-x86_64-setup.exe) | 274 KB |
+| x64 · .zip archive | [`honeydew-windows-x86_64.zip`](https://github.com/stoatworks-labs/honeydew/releases/latest/download/honeydew-windows-x86_64.zip) | 317 KB |
+
+</details>
+
+All builds, checksums and release notes: [github.com/stoatworks-labs/honeydew/releases](https://github.com/stoatworks-labs/honeydew/releases).
+
+macOS builds are signed and notarised and open normally. The Windows builds are unsigned, so SmartScreen warns once.
+
+<!-- downloads:end -->
 
 ## The one idea
 
@@ -147,10 +180,25 @@ The source is opaque (the lightbox is the picture); the Over keeps the clip's al
 ([PDF](docs/USER-GUIDE.pdf)) and a [project page](https://stoatworks-labs.com/software/honeydew/);
 no OpenFX port.
 
-It has **never been loaded into Resolume**, on any platform. `oxbow probe` reads the
-bundles as a host does (`SW Honeydew` / `HD01` / source, `SW Honeydew Over` / `HD02` /
-effect) and `oxbow selftest` renders 120 frames through each. No Windows build has run.
-Built and measured on macOS (Apple Silicon).
+It has **never been loaded into Resolume on macOS**. `oxbow probe` reads the bundles
+as a host does (`SW Honeydew` / `HD01` / source, `SW Honeydew Over` / `HD02` / effect)
+and `oxbow selftest` renders 120 frames through each. Built and measured on macOS
+(Apple Silicon). The macOS build is Developer ID-signed and notarised.
+
+### In Resolume Arena, on Windows
+
+On Windows both plugins have been loaded: the DLLs release.yml built from the tagged tree
+load, register and render in Resolume Arena 7.27.1 on software rendering (win-lab, Mesa
+llvmpipe, no GPU, no sound device), with every control matching what the plugins declare
+(32 and 35 host controls, Arena's own Opacity included), Arena's log clean and Arena alive
+at the end, in the fleet's Arena gate: 15 of 15 checks, the audio rows skipped. On the
+source 12 controls were confirmed live one at a time (Reaction, Catalyst, Oxidant,
+Reductant, Indicator, Vessel, Depth, Time-lapse, Drop Size, Clock Sync, Lightbox,
+Exposure) and 8 read inconclusive, none dead: the dish's waves move every frame, so no two
+grabs of the picture are alike and the gate's noise floor is high. On the Over 21 were
+confirmed live, Drop Position inconclusive and Seed From Clip inert (it acts only on a
+Reset, which the gate never presses). The harness's own sweep (all 54 parameters move the
+picture) carries the rest. Software rendering says nothing about a GPU or about speed.
 
 **Not built: the chemoconvection cells.** The spec's third change asked for a
 depth-resolved Boussinesq solver (a Convection control, `--rayleigh`,
@@ -205,8 +253,9 @@ raster's: the raster pays only for the composite.
 
 What is **not** verified, and is the honest limit of this build:
 
-- **Never in Resolume**: the clock unit, the transport's bar phase, the FFT bins and
-  how 31 and 33 parameters present are untested in a host.
+- **Never in Resolume on macOS**, and on Windows only on software rendering with no
+  sound device: the clock unit on macOS, the transport's bar phase, the FFT bins and
+  real audio are untested in a host.
 - **The plugin is held to the cited models, not to a dish.** Eleven of the twenty
   spectral peaks and a number of rate and diffusion constants are stand-ins (each marked
   in CHEMISTRY.md); the pacemakers, the stirring, the aeration, the Flow residence and

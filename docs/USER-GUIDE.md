@@ -32,7 +32,7 @@ Flow, pacemakers firing target waves that annihilate where they meet.*
 > are not built**, and Briggs–Rauscher is stirred only.
 > It has **never been loaded into Resolume on macOS** — the one host it has run in there is the
 > fleet's own test host, `oxbow`, for 120 frames each.
-> It has not yet been loaded into Resolume on Windows either.
+> On Windows both plugins have been loaded: a build of this source loads, registers and renders in Resolume Arena 7.27.1 on software rendering (win-lab, Mesa llvmpipe, no GPU, no sound device), with every control matching what the plugins declare (32 and 35 host controls), Arena's log clean, in the fleet's Arena gate: 15 of 15 checks, the audio rows skipped. Because the dish's waves move every frame, no two grabs of the picture are alike, so the gate could confirm only some controls one at a time: 12 of the source's and 21 of the effect's, the rest inconclusive (none dead). The harness's own sweep (all 54 parameters move the picture) carries the rest. Software rendering says nothing about a GPU or about speed.
 > Try it on a spare layer before you put it in a show.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.

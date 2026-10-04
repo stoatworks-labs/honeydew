@@ -509,9 +509,23 @@ caught.
 
 Assumed, or not done:
 
-- **Never loaded into Resolume**, on any platform. Unknown there: how the 31
-  and 33 parameters present, the clock unit, `SetBeatInfo`'s bar phase, the
-  FFT bins, whether events arrive as 1 then 0. No Windows build has run.
+- **Never loaded into Resolume on macOS.** Unknown there: the clock unit,
+  `SetBeatInfo`'s bar phase, the FFT bins, whether events arrive as 1 then 0.
+- **Windows, in Resolume Arena 7.27.1** (win-lab, Mesa llvmpipe, no GPU, no sound
+  device, 2026-10-04): MSVC compiled it first time (ci.yml on the first push,
+  then release.yml), and the DLLs release.yml built from the registered tree
+  (85a7cd3, the commit v0.1.0 tags) load from Extra Effects, register as `SW
+  Honeydew` / `HD01` / source and `SW Honeydew Over` / `HD02` / effect, all 32 +
+  35 host controls match the declaration (`plugin-bench/arena/expect/honeydew.json`,
+  seeded by `seed_expect.py` and annotated: Seed probed at 3 and 7, Detail probed
+  at 128 only so llvmpipe never runs the 1024-cell solver, `requires: audio` on the
+  three audio rows, Clock Sync under Reaction = Iodine Clock, Light Coupling under
+  Catalyst = Ru(bpy)3, the drop controls under Auto Drop = 1, Seed From Clip
+  inert), both render, Arena's log stays clean and Arena survives: 15 of 15 checks,
+  audio skipped, ONE run. Live on the source: 12; INCONCLUSIVE 8 (Acid or Base,
+  Reactor, Seed, Dish Width, Stir, Detail, Auto Drop, Drop Position), none dead --
+  the waves move every frame, so the single-grab noise floor is 9.6 levels. Live on
+  the Over: 21; Drop Position inconclusive.
 - **The chemistry is the cited models at the cited constants**, and eleven of
   the twenty spectral peaks and a number of rate and diffusion constants are
   STAND-INS, each marked in CHEMISTRY.md. The plugin is verified against
