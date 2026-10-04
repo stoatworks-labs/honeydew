@@ -143,7 +143,9 @@ The source is opaque (the lightbox is the picture); the Over keeps the clip's al
 ## Status
 
 **v0.1.0, 4 October 2026, and honestly early.** There is a
-[user guide](docs/USER-GUIDE.md); no project page yet, no browser demo, no OpenFX port.
+[user guide](https://stoatworks-labs.com/software/honeydew/guide/)
+([PDF](docs/USER-GUIDE.pdf)) and a [project page](https://stoatworks-labs.com/software/honeydew/);
+no OpenFX port.
 
 It has **never been loaded into Resolume**, on any platform. `oxbow probe` reads the
 bundles as a host does (`SW Honeydew` / `HD01` / source, `SW Honeydew Over` / `HD02` /

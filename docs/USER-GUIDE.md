@@ -32,7 +32,7 @@ Flow, pacemakers firing target waves that annihilate where they meet.*
 > are not built**, and Briggs–Rauscher is stirred only.
 > It has **never been loaded into Resolume on macOS** — the one host it has run in there is the
 > fleet's own test host, `oxbow`, for 120 frames each.
-> **[WINDOWS/ARENA PLACEHOLDER — to be filled in after the Arena gate.]**
+> It has not yet been loaded into Resolume on Windows either.
 > Try it on a spare layer before you put it in a show.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
