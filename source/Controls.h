@@ -70,6 +70,11 @@ enum ParamId : unsigned int
 	PT_EXPOSURE,
 	PT_SEED_FROM_CLIP,///< Over only
 	PT_MIX,           ///< Over only
+	/// Appended in 0.1.1 (FFGL's ABI is by index: new controls go after the
+	/// last existing one, with the About block still last). BZ only: the
+	/// Oregonator's stoichiometric factor f, oscillatory below the Hopf point
+	/// and excitable past it (AGENTS.md). Shown in the Reaction group.
+	PT_EXCITABILITY,
 
 	// -- The Stoatworks About block: a text line, then one button per link.
 	PT_ABOUT_TEXT,
@@ -173,6 +178,11 @@ float ParamFromTimelapse( double x );
 /// A drop's diameter in millimetres: 1 to 20, geometric.
 double DropSizeFromParam( float v );
 float ParamFromDropSize( double mm );
+/// Excitability: the Oregonator's f, 1 to 4 (geometric). 1.4 (the default)
+/// oscillates in bulk; past the Hopf point 1 + sqrt 2 = 2.414 the rest state
+/// is stable and excitable, where a broken wave winds a spiral.
+double ExcitabilityFromParam( float v );
+float ParamFromExcitability( double f );
 /// Drops per minute of chemical time: 0 at the bottom, else 1 to 60.
 double AutoDropFromParam( float v );
 /// Exposure in stops: -2 to +2, 0 at 0.5.

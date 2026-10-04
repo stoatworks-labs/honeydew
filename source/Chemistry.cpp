@@ -482,7 +482,7 @@ void BRInitialState( const Recipe& recipe, double* y, double& H, double& H2O2 )
 }
 
 //---------------------------------------------------------------------------
-Params MakeParams( Reaction r, const Recipe& recipe, Catalyst catalyst, Reactor reactor, double depthMm, double stir )
+Params MakeParams( Reaction r, const Recipe& recipe, Catalyst catalyst, Reactor reactor, double depthMm, double stir, double f )
 {
 	Params p {};
 	p[ P_REACTION ] = static_cast< float >( static_cast< int >( r ) );
@@ -493,7 +493,7 @@ Params MakeParams( Reaction r, const Recipe& recipe, Catalyst catalyst, Reactor 
 	{
 	case Reaction::BZ:
 	{
-		const BZModel m    = MakeBZ( recipe );
+		const BZModel m    = MakeBZ( recipe, f );
 		p[ P_BZ_EPS ]      = static_cast< float >( m.eps );
 		p[ P_BZ_Q ]        = static_cast< float >( m.q );
 		p[ P_BZ_F ]        = static_cast< float >( m.f );
@@ -574,7 +574,7 @@ Params MakeParams( Reaction r, const Recipe& recipe, Catalyst catalyst, Reactor 
 	return p;
 }
 
-void FreshState( Reaction r, const Params& p, double* a, double* b )
+void FreshState( Reaction r, const Params& p, double* a, double* b, bool atRest )
 {
 	for( int i = 0; i < 4; ++i )
 		a[ i ] = b[ i ] = 0.0;
@@ -589,7 +589,7 @@ void FreshState( Reaction r, const Params& p, double* a, double* b )
 		m.f        = p[ P_BZ_F ];
 		double xyz[ 3 ];
 		BZRestState( m, xyz );
-		a[ 0 ] = xyz[ 0 ];
+		a[ 0 ] = xyz[ 0 ] * ( atRest ? 1.0 : kFreshKick );
 		a[ 1 ] = xyz[ 1 ];
 		a[ 2 ] = xyz[ 2 ];
 		a[ 3 ] = 1.0;

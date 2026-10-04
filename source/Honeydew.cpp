@@ -141,6 +141,7 @@ HoneydewPlugin::HoneydewPlugin( bool effect ) :
 	params[ PT_EXPOSURE ]      = 0.5f;
 	params[ PT_SEED_FROM_CLIP ] = 1.0f;
 	params[ PT_MIX ]           = 1.0f;
+	params[ PT_EXCITABILITY ]  = ParamFromExcitability( chem::kOregonator.f );//1.4: the 0.1.0 dish
 
 	for( unsigned int host = 0; host < hostOrder.size(); ++host )
 	{
@@ -343,7 +344,7 @@ chem::Params HoneydewPlugin::CurrentParams() const
 	const Reaction r = CurrentReaction();
 	chem::Params p   = chem::MakeParams( r, CurrentRecipe(), static_cast< Catalyst >( OptionIndex( params[ PT_CATALYST ], 3 ) ),
 	                                     static_cast< Reactor >( OptionIndex( params[ PT_REACTOR ], 2 ) ), DepthFromParam( params[ PT_DEPTH ] ),
-	                                     std::clamp( params[ PT_STIR ], 0.0f, 1.0f ) );
+	                                     std::clamp( params[ PT_STIR ], 0.0f, 1.0f ), ExcitabilityFromParam( params[ PT_EXCITABILITY ] ) );
 	for( const auto& o : overrides )
 		if( o.first >= 0 && o.first < chem::kParamCount )
 			p[ static_cast< size_t >( o.first ) ] = o.second;
@@ -374,7 +375,7 @@ void HoneydewPlugin::seed()
 	const Reaction r     = CurrentReaction();
 	const chem::Params p = CurrentParams();
 	double a[ 4 ], b[ 4 ];
-	chem::FreshState( r, p, a, b );
+	chem::FreshState( r, p, a, b, freshAtRest );
 	ScopedShaderBinding shader( seedShader.GetGLID() );
 	bindUnit( 0, stateA[ 1 - cur ].TextureID() );//unused by the seed, but every sampler needs a texture
 	bindUnit( 1, stateB[ 1 - cur ].TextureID() );

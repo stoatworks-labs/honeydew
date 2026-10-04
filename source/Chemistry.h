@@ -349,10 +349,19 @@ enum ParamSlot
 	P_CH_KA = 4, P_CH_KB, P_CH_OH, P_CH_DMN, P_CH_DMNO2, P_CH_DGL, P_CH_GL0, P_CH_MN0,
 };
 /// The parameters for a reaction at a recipe; `catalyst` matters to BZ only.
-Params MakeParams( Reaction r, const Recipe& recipe, Catalyst catalyst, Reactor reactor, double depthMm, double stir );
+/// `f` is the Oregonator's stoichiometric factor (the Excitability control;
+/// the other reactions ignore it).
+Params MakeParams( Reaction r, const Recipe& recipe, Catalyst catalyst, Reactor reactor, double depthMm, double stir, double f = kOregonator.f );
 /// The fresh (Reset) state of a well-mixed cell, 8 channels (A0..3, B0..3),
 /// in the GPU's layout for that reaction. BR is not here (BRInitialState).
-void FreshState( Reaction r, const Params& p, double* a4, double* b4 );
+/// A freshly poured dish. BZ starts a touch above its rest state (HBrO2 at
+/// kFreshKick times the rest value): the three-variable rest state is an
+/// UNSTABLE fixed point in the oscillatory regime, and a dish seeded exactly
+/// on it and stirred hard (the whole-vessel relaxation holds it there) never
+/// started in 1500 s of 0.1.0 (AGENTS.md). `atRest` is the harness's negative
+/// control: the exact fixed point, as 0.1.0 seeded it.
+void FreshState( Reaction r, const Params& p, double* a, double* b, bool atRest = false );
+constexpr double kFreshKick = 1.01;
 /// The well-mixed right-hand side of a reaction in the GPU's state layout, in
 /// chemical seconds, with `light` in 0..1 (the photosensitive ones) and an
 /// aeration multiplier for the dye family. The GPU step is checked against

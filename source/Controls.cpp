@@ -24,6 +24,7 @@ constexpr double kDishLow = 10.0, kDishHigh = 300.0;
 constexpr double kDepthLow = 0.3, kDepthHigh = 20.0;
 constexpr double kLapseLow = 1.0, kLapseHigh = 300.0;
 constexpr double kDropLow = 1.0, kDropHigh = 20.0;
+constexpr double kExcitLow = 1.0, kExcitHigh = 4.0;
 constexpr double kAutoLow = 1.0, kAutoHigh = 60.0;
 /// The stir bar at full Stir: two turns a second of chemical time.
 constexpr double kOmegaMax = 4.0 * 3.14159265358979323846;
@@ -51,6 +52,9 @@ const std::vector< unsigned int >& HostOrder( bool effect )
 			order.insert( order.end(), { PT_LIGHT_COUPLING, PT_EXPOSURE, PT_SEED_FROM_CLIP, PT_MIX } );
 		else
 			order.insert( order.end(), { PT_LIGHTBOX, PT_EXPOSURE } );
+		//0.1.1's control goes after every 0.1.0 one (the ABI is by index), the
+		//About block after it.
+		order.push_back( PT_EXCITABILITY );
 		for( unsigned int id = PT_ABOUT_TEXT; id < PT_COUNT; ++id )
 			order.push_back( id );
 		return order;
@@ -61,7 +65,7 @@ const std::vector< unsigned int >& HostOrder( bool effect )
 
 const char* GroupOf( unsigned int id )
 {
-	if( id <= PT_SEED )
+	if( id <= PT_SEED || id == PT_EXCITABILITY )
 		return "Reaction";
 	if( id <= PT_INDICATOR )
 		return "Recipe";
@@ -83,6 +87,7 @@ const char* NameOf( unsigned int id )
 	case PT_REACTION: return "Reaction";
 	case PT_CATALYST: return "Catalyst";
 	case PT_REACTOR: return "Reactor";
+	case PT_EXCITABILITY: return "Excitability";
 	case PT_RESET: return "Reset";
 	case PT_SEED: return "Seed";
 	case PT_OXIDANT: return "Oxidant";
@@ -206,6 +211,14 @@ double DropSizeFromParam( float v )
 float ParamFromDropSize( double mm )
 {
 	return inverseGeometric( mm, kDropLow, kDropHigh );
+}
+double ExcitabilityFromParam( float v )
+{
+	return geometric( v, kExcitLow, kExcitHigh );
+}
+float ParamFromExcitability( double f )
+{
+	return inverseGeometric( f, kExcitLow, kExcitHigh );
 }
 double AutoDropFromParam( float v )
 {

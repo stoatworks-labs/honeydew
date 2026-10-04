@@ -90,6 +90,21 @@ public:
 		testChemOn      = true;
 	}
 	/// Uncapped: as many substeps as the stability bound asks for.
+	/// Seed the next fresh BZ dish exactly on the rest state, as 0.1.0 did
+	/// (the negative control of --freshstir).
+	void SetFreshAtRestForTest( bool on )
+	{
+		freshAtRest = on;
+	}
+	/// The grid as it is (the harness's checks that run at the plugin's own Detail).
+	int GridCols() const
+	{
+		return grid.cols;
+	}
+	int GridRows() const
+	{
+		return grid.rows;
+	}
 	void SetUncappedForTest( bool on )
 	{
 		uncapped = on;
@@ -390,7 +405,7 @@ private:
 	bool loadPending = false;
 	std::vector< std::pair< int, float > > overrides;
 	bool diffusionOff = false, photoOff = false, fuelOff = false, naiveDepth = false, floatClock = false,
-	     clearOnResize = false, wrongDose = false, stirOff = false, fixedCell = false;
+	     clearOnResize = false, wrongDose = false, stirOff = false, fixedCell = false, freshAtRest = false;
 	double lastNow = -1.0;
 };
 
