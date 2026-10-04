@@ -36,10 +36,13 @@ constexpr double kRelaxMax = 3.0;
 
 const std::vector< unsigned int >& HostOrder( bool effect )
 {
+	//PT_CONVECTION is declared by neither plugin in 0.1.0: the depth-resolved
+	//solver it would switch on is not built (AGENTS.md). A control nothing
+	//reads would be a dead control.
 	auto build = []( bool over ) {
 		std::vector< unsigned int > order = { PT_REACTION, PT_CATALYST, PT_REACTOR, PT_RESET, PT_SEED,
 			                                  PT_OXIDANT, PT_ACID_BASE, PT_REDUCTANT, PT_INDICATOR,
-			                                  PT_VESSEL, PT_DISH_WIDTH, PT_DEPTH, PT_STIR, PT_TIMELAPSE, PT_DETAIL, PT_CONVECTION,
+			                                  PT_VESSEL, PT_DISH_WIDTH, PT_DEPTH, PT_STIR, PT_TIMELAPSE, PT_DETAIL,
 			                                  PT_DROP, PT_DROP_SIZE, PT_DROP_POSITION, PT_BREAK_WAVE, PT_SHAKE, PT_AUTO_DROP,
 			                                  PT_AUDIO, PT_AUDIO_DROPS, PT_AUDIO_SHAKES, PT_CLOCK_SYNC };
 		if( over )

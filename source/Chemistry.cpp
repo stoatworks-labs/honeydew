@@ -293,27 +293,46 @@ double ClockRateConstant( double H )
 	return kClock.k1 + kClock.k2 * H;
 }
 
-double ClockSwitchTime( double H0, double I0, double H, double S0, double k0 )
+double ClockDoseForSwitch( double tSwitch, double H0, double Hfeed, double I0, double H, double k0 )
+{
+	if( tSwitch <= 0.0 || H0 <= 0.0 || I0 <= 0.0 )
+		return 0.0;
+	const double kp = ClockRateConstant( H );
+	if( k0 > 0.0 )
+	{
+		const double Hs = Hfeed * k0 / ( k0 + kp * I0 );
+		return 2.0 * kp * I0 * ( Hs * ( std::exp( k0 * tSwitch ) - 1.0 ) / k0 + ( H0 - Hs ) * ( 1.0 - std::exp( -kp * I0 * tSwitch ) ) / ( kp * I0 ) );
+	}
+	return 2.0 * H0 * ( 1.0 - std::exp( -kp * I0 * tSwitch ) );
+}
+
+double ClockSwitchTime( double H0, double Hfeed, double I0, double H, double S0, double k0 )
 {
 	if( S0 <= 0.0 )
 		return 0.0;
 	if( H0 <= 0.0 || I0 <= 0.0 )
 		return -1.0;
-	const double rate = ClockRateConstant( H ) * H0 * I0;
-	if( k0 > 0.0 )
-		return std::log( 1.0 + S0 * k0 / ( 2.0 * rate ) ) / k0;
-	if( S0 >= 2.0 * H0 )
+	if( k0 <= 0.0 )
+	{
+		if( S0 >= 2.0 * H0 )
+			return -1.0;
+		return -std::log( 1.0 - S0 / ( 2.0 * H0 ) ) / ( ClockRateConstant( H ) * I0 );
+	}
+	//Monotone in t: bisection.
+	double lo = 0.0, hi = 1.0;
+	while( ClockDoseForSwitch( hi, H0, Hfeed, I0, H, k0 ) < S0 && hi < 1e9 )
+		hi *= 2.0;
+	if( hi >= 1e9 )
 		return -1.0;
-	return -std::log( 1.0 - S0 / ( 2.0 * H0 ) ) / ( ClockRateConstant( H ) * I0 );
-}
-
-double ClockDoseForSwitch( double tSwitch, double H0, double I0, double H, double k0 )
-{
-	if( tSwitch <= 0.0 || H0 <= 0.0 || I0 <= 0.0 )
-		return 0.0;
-	if( k0 > 0.0 )
-		return 2.0 * ClockRateConstant( H ) * H0 * I0 / k0 * ( std::exp( k0 * tSwitch ) - 1.0 );
-	return 2.0 * H0 * ( 1.0 - std::exp( -ClockRateConstant( H ) * I0 * tSwitch ) );
+	for( int i = 0; i < 100; ++i )
+	{
+		const double mid = 0.5 * ( lo + hi );
+		if( ClockDoseForSwitch( mid, H0, Hfeed, I0, H, k0 ) < S0 )
+			lo = mid;
+		else
+			hi = mid;
+	}
+	return 0.5 * ( lo + hi );
 }
 
 double StarchBound( double I3free, double sites, double KStarch )

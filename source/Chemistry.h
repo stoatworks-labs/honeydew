@@ -200,16 +200,18 @@ struct ClockKinetics
 extern const ClockKinetics kClock;
 /// ( k1 + k2 H ) in M^-1 s^-1.
 double ClockRateConstant( double H );
-/// The switch time of a well-mixed cell: thiosulfate S0 against H2O2 (H0) and
-/// iodide (I0, held: the thiosulfate regenerates it) in acid H. In Batch
-///   t* = -ln( 1 - S0 / ( 2 H0 ) ) / ( ( k1 + k2 H ) I0 ),   S0 < 2 H0;
-/// in Flow (feed k0, the peroxide held at H0 and the thiosulfate washed)
-///   t* = ln( 1 + S0 k0 / ( 2 k' H0 I0 ) ) / k0.
-/// Returns a negative number if the thiosulfate can never run out.
-double ClockSwitchTime( double H0, double I0, double H, double S0, double k0 = 0.0 );
-/// The thiosulfate dose that switches at tSwitch: Batch S0 = 2 H0 ( 1 - exp( -k' I0 t ) ),
-/// Flow S0 = ( 2 k' H0 I0 / k0 )( exp( k0 t ) - 1 ).
-double ClockDoseForSwitch( double tSwitch, double H0, double I0, double H, double k0 = 0.0 );
+/// The thiosulfate a well-mixed cell has consumed by t: the peroxide H(t)
+/// makes iodine at k' H I0 (iodide I0 held: the thiosulfate regenerates it)
+/// and each iodine takes two thiosulfates. In Batch H decays as H0 e^( -k' I0 t ):
+///   S( t ) = 2 H0 ( 1 - e^( -k' I0 t ) ).
+/// In Flow (feed k0 of peroxide at Hfeed, the thiosulfate washed at k0) H
+/// relaxes from H0 to Hs = Hfeed k0 / ( k0 + k' I0 ) at lambda = k0 + k' I0, and
+///   S( t ) = 2 k' I0 [ Hs ( e^( k0 t ) - 1 ) / k0 + ( H0 - Hs )( 1 - e^( -k' I0 t ) ) / ( k' I0 ) ]
+/// (the dose needed for a switch at t; a dose S0 switches when S( t ) = S0).
+double ClockDoseForSwitch( double tSwitch, double H0, double Hfeed, double I0, double H, double k0 = 0.0 );
+/// The switch time of a dose S0 (the inverse of the above; a negative number
+/// if the thiosulfate can never run out).
+double ClockSwitchTime( double H0, double Hfeed, double I0, double H, double S0, double k0 = 0.0 );
 /// The triiodide a starch holds, by the Langmuir site model.
 double StarchBound( double I3free, double sites, double KStarch );
 /// Iodine speciation: total iodine T = [I2] + [I3-] and free iodide F = [I-]

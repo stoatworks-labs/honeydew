@@ -1132,7 +1132,9 @@ FFResult HoneydewPlugin::ProcessOpenGL( ProcessOpenGLStruct* pgl )
 				const double toNext = transport.SecondsToNext( bar, kSyncLead );
 				const double tChem  = ( toNext + hostDt ) * lapse;
 				const double H      = wrongDose ? 0.0 : recipe.acidBase;
-				double S0           = chem::ClockDoseForSwitch( tChem, meanA[ 0 ], meanA[ 1 ], H, params_[ chem::P_FLOW_K0 ] );
+				//The iodide the dose gives back (the held dish's iodine took it).
+				const double iodideAfter = std::max( meanA[ 1 ], 0.0 ) + 2.0 * std::max( meanA[ 2 ], 0.0 );
+				double S0 = chem::ClockDoseForSwitch( tChem, std::max( meanA[ 0 ], 0.0 ), params_[ chem::P_CK_H2O2_0 ], iodideAfter, H, params_[ chem::P_FLOW_K0 ] );
 				const double capS   = 1.98 * meanA[ 0 ];
 				if( S0 > capS )
 				{

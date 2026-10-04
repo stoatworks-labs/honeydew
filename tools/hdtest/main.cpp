@@ -2103,9 +2103,10 @@ double firstFall( const RefTrace& tr, int channel, double level, double from = 0
 //===========================================================================
 int runClock( const Perturb& perturb )
 {
-	std::printf( "\n=== clock: the iodine clock's switch, read from pixels, lands on the Harcourt-Esson closed form at three recipes (Batch)\n" );
+	std::printf( "\n=== clock: the iodine clock's switch, read from pixels, lands on the Harcourt-Esson closed form at three recipes, in Batch and in Flow\n" );
 	const double frameChem = 0.25;
 	for( const Raster& raster : kRasters )
+		for( int reactor = 0; reactor < 2; ++reactor )
 	{
 		int wrong = 0;
 		std::string what;
@@ -2115,14 +2116,15 @@ int runClock( const Perturb& perturb )
 			if( !rig.Init( raster.w, raster.h ) )
 				return 1;
 			prepare( rig, Reaction::IodineClock, 32, 18 );
-			rig.Set( PT_REACTOR, static_cast< float >( Reactor::Batch ) );//the closed form is a batch's
+			rig.Set( PT_REACTOR, static_cast< float >( reactor ) );
 			rig.Set( PT_OXIDANT, ParamFromRecipeMultiplier( oxidant ) );
 			if( perturb.clockWrongAcid )
 				rig.plugin.SetParamOverrideForTest( chem::P_CK_KP, static_cast< float >( chem::kClock.k1 ) );
 			rig.Render( 1 );
 			const chem::Recipe recipe = rig.plugin.CurrentRecipe();
+			const double k0 = rig.plugin.CurrentParams()[ chem::P_FLOW_K0 ];
 			const double H0 = recipe.oxidant, I0 = chem::kClock.iodide, H = recipe.acidBase, S0 = recipe.reductant;
-			const double tStar = chem::ClockSwitchTime( H0, I0, H, S0 );
+			const double tStar = chem::ClockSwitchTime( H0, H0, I0, H, S0, k0 );
 			//The iodine that dims the red channel by 10% (the starch complex absorbs at 620 nm): the colour's own lag.
 			double white[ 3 ];
 			spectra::LayerColour( Lightbox::D65, {}, {}, 0.15, white );
@@ -2159,12 +2161,12 @@ int runClock( const Perturb& perturb )
 			}
 			//One frame, the colour's lag, and the explicit step's drift of the
 			//peroxide (dt k' I0 of itself per step over the run).
-			const double bound = frameChem + tLag + frameChem * chem::ClockRateConstant( H ) * I0 * tStar;
+			const double bound = frameChem + tLag + frameChem * ( chem::ClockRateConstant( H ) * I0 + k0 ) * tStar;
 			const bool ok      = tPixel > 0.0 && std::fabs( tPixel - tStar ) <= bound;
 			wrong += !ok;
 			what += fmt( " %gx H2O2: pixels %.2f s, state %.2f, closed form %.2f (bound %.2f)%s;", oxidant, tPixel, tState, tStar, bound, ok ? "" : " OUT" );
 		}
-		Check( wrong == 0, fmt( "%dx%d %s %d wrong", raster.w, raster.h, what.c_str(), wrong ) );
+		Check( wrong == 0, fmt( "%dx%d %s:%s %d wrong", raster.w, raster.h, reactor == 0 ? "Batch" : "Flow ", what.c_str(), wrong ) );
 	}
 	return Verdict();
 }
@@ -2181,7 +2183,8 @@ int runSync( const Perturb& perturb )
 		for( double bpm : { 120.0, 97.0 } )
 		{
 			const double bar = 240.0 / bpm;
-			//The iodine clock.
+			//The iodine clock, in both reactors.
+			for( int reactor = 0; reactor < 2; ++reactor )
 			{
 				Rig rig;
 				if( !rig.Init( raster.w, raster.h ) )
@@ -2191,6 +2194,7 @@ int runSync( const Perturb& perturb )
 				rig.plugin.SetWrongDoseForTest( perturb.syncWrongDose );
 				rig.Set( PT_CLOCK_SYNC, static_cast< float >( ClockSync::Bar ) );
 				rig.Set( PT_TIMELAPSE, ParamFromTimelapse( 30.0 ) );
+				rig.Set( PT_REACTOR, static_cast< float >( reactor ) );
 				rig.bpm = bpm;
 				rig.Render( 1 );
 				double rgb0[ 3 ];
@@ -2221,8 +2225,8 @@ int runSync( const Perturb& perturb )
 				//A frame (the dose lands on a frame; the snap is read on a frame)
 				//plus the colour's lag at 30x (a tenth of a chemical second).
 				const double bound = 2.0 / 60.0 + 0.1 / 30.0;
-				Check( counted >= 3 && worst <= bound, fmt( "%dx%d  clock at %g BPM (bar %.3f s): %d synced snaps at%s s, worst %.3f s off a bar (bound %.3f); %llu doses",
-				                                            raster.w, raster.h, bpm, bar, counted, what.c_str(), worst, bound, rig.plugin.DosesMade() ) );
+				Check( counted >= 3 && worst <= bound, fmt( "%dx%d  clock (%s) at %g BPM (bar %.3f s): %d synced snaps at%s s, worst %.3f s off a bar (bound %.3f); %llu doses",
+				                                            raster.w, raster.h, reactor == 0 ? "Batch" : "Flow", bpm, bar, counted, what.c_str(), worst, bound, rig.plugin.DosesMade() ) );
 			}
 			//The blue bottle: 7 mm, 100x, the fade (half the dye reduced) on the bar.
 			{
@@ -2495,7 +2499,7 @@ DyeRun dyeRun( const Raster& raster, Reaction r, double depthMm, double oxidant,
 		const double ctot    = p[ chem::P_DY_CTOT ];
 		std::vector< Colour > colours;
 		const double frameChem = 0.5;
-		double tRed = -1.0, tYellow = -1.0, tColourless = -1.0, tFade = -1.0;
+		double tRed = -1.0, tYellow = -1.0, tColourless = -1.0, tFade = -1.0, lastRed = -1.0;
 		int shakesDone = 0, fades = 0;
 		double nextShake = 0.0;
 		bool wasHigh = false;
@@ -2518,9 +2522,16 @@ DyeRun dyeRun( const Raster& raster, Reaction r, double depthMm, double oxidant,
 			const Colour c = classify( rgb );
 			colours.push_back( c );
 			const double t = ( f + 1 ) * frameChem;
-			if( tRed < 0.0 && c == Colour::Red )
+			//The traffic light's "red" is the semiquinone over the yellow leuco
+			//form: red to orange-red, so the red and amber bands both count;
+			//its yellow is the yellow band alone, AFTER the red (a continuous
+			//colour passes from green to red through the yellows, so a yellow
+			//reading before the red is the crossing, not the phase).
+			if( tRed < 0.0 && ( c == Colour::Red || c == Colour::Amber ) )
 				tRed = t;
-			if( tYellow < 0.0 && ( c == Colour::Yellow || c == Colour::Amber ) && tRed > 0.0 )
+			if( tRed > 0.0 && ( c == Colour::Red || c == Colour::Amber ) )
+				lastRed = t;
+			if( tYellow < 0.0 && c == Colour::Yellow && tRed > 0.0 && t > lastRed + 10.0 )
 				tYellow = t;
 			if( tColourless < 0.0 && c == Colour::Colourless && f > 2 )
 				tColourless = t;
@@ -2549,9 +2560,23 @@ DyeRun dyeRun( const Raster& raster, Reaction r, double depthMm, double oxidant,
 			run.tColourless = tColourless;
 			run.tFade       = tFade;
 			run.fades       = fades;
-			for( size_t i = 0; i + 2 < run.distinct.size(); ++i )
-				if( run.distinct[ i ] == Colour::Green && run.distinct[ i + 1 ] == Colour::Red && ( run.distinct[ i + 2 ] == Colour::Yellow || run.distinct[ i + 2 ] == Colour::Amber ) )
-					++run.cycles;
+			//A cycle: a green reading, then a red one, then a yellow one, in that
+			//order, whatever passes between (the crossings).
+			{
+				int stage = 0;
+				for( Colour c : run.distinct )
+				{
+					if( stage == 0 && c == Colour::Green )
+						stage = 1;
+					else if( stage == 1 && ( c == Colour::Red || c == Colour::Amber ) )
+						stage = 2;
+					else if( stage == 2 && c == Colour::Yellow )
+					{
+						++run.cycles;
+						stage = 0;
+					}
+				}
+			}
 		}
 		else
 		{
@@ -2580,19 +2605,29 @@ int runTraffic( const Perturb& perturb )
 		probe.Render( 1 );
 		const chem::Params p0     = probe.plugin.CurrentParams();
 		const chem::Recipe recipe = probe.plugin.CurrentRecipe();
-		const RefTrace ref        = referenceTrace( Reaction::TrafficLight, p0, recipe, depth * 0.1, 400.0, 0.5, 0, p0[ chem::P_DY_O2SAT ] );
-		const double refRed = firstTime( ref, Colour::Red ), refYellow = firstOfAny( ref, Colour::Yellow, Colour::Amber, refRed );
+		const RefTrace ref        = referenceTrace( Reaction::TrafficLight, p0, recipe, depth * 0.1, 1200.0, 0.5, 0, p0[ chem::P_DY_O2SAT ] );
+		const double refRed = firstOfAny( ref, Colour::Red, Colour::Amber );
+		double refYellow    = -1.0, refLastRed = refRed;
+		for( size_t i = 0; i < ref.t.size(); ++i )
+		{
+			if( ref.t[ i ] < refRed )
+				continue;
+			if( ref.colour[ i ] == Colour::Red || ref.colour[ i ] == Colour::Amber )
+				refLastRed = ref.t[ i ];
+			if( refYellow < 0.0 && ref.colour[ i ] == Colour::Yellow && ref.t[ i ] > refLastRed + 10.0 )
+				refYellow = ref.t[ i ];
+		}
 		//Two real Shakes for the order; an air-saturating dose for the timing
 		//(a Shake's stirring burst keeps aerating the layer for a while, which
 		//the well-mixed reference does not model).
-		const DyeRun shaken = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 1.0, false, 400.0, perturb, 2, 250.0, true );
-		const DyeRun one    = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 1.0, false, 400.0, perturb );
+		const DyeRun shaken = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 1.0, false, 1800.0, perturb, 2, 900.0, true );
+		const DyeRun one    = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 1.0, false, 1200.0, perturb );
 		//Each transition: a frame, plus the plugin's own step error (Richardson).
 		const double boundRed    = 0.5 + 2.0 * std::fabs( one.tRed - one.tRedHalf );
 		const double boundYellow = 0.5 + 2.0 * std::fabs( one.tYellow - one.tYellowHalf );
-		Check( shaken.cycles >= 2 && one.tRed > 0.0 && std::fabs( one.tRed - refRed ) <= boundRed && std::fabs( one.tYellow - refYellow ) <= boundYellow,
-		       fmt( "%dx%d  two Shakes 250 s apart: %s; %d green > red > yellow cycles. Dosed with air: red at %.1f s (reference %.1f, bound %.1f), yellow at %.1f s (reference %.1f, bound %.1f)",
-		            raster.w, raster.h, shaken.sequence.c_str(), shaken.cycles, one.tRed, refRed, boundRed, one.tYellow, refYellow, boundYellow ) );
+		Check( shaken.cycles >= 2 && one.tRed > 0.0 && one.tYellow > 0.0 && std::fabs( one.tRed - refRed ) <= boundRed && std::fabs( one.tYellow - refYellow ) <= boundYellow,
+		       fmt( "%dx%d  two Shakes 900 s apart: %s; %d green > red > yellow cycles. Dosed with air (%s): red at %.1f s (reference %.1f, bound %.1f), yellow at %.1f s (reference %.1f, bound %.1f)",
+		            raster.w, raster.h, shaken.sequence.c_str(), shaken.cycles, one.sequence.c_str(), one.tRed, refRed, boundRed, one.tYellow, refYellow, boundYellow ) );
 		//The trends: more air lengthens the green, more glucose or base shortens it.
 		const DyeRun moreAir = dyeRun( raster, Reaction::TrafficLight, depth, 2.0, 1.0, 1.0, false, 900.0, perturb );
 		const DyeRun moreGL  = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 2.0, false, 900.0, perturb );
@@ -2607,7 +2642,7 @@ int runTraffic( const Perturb& perturb )
 				return 1;
 			prepare( rig, Reaction::TrafficLight, 32, 18 );
 			rig.Set( PT_DEPTH, ParamFromDepth( depth ) );
-			rig.Set( PT_REDUCTANT, ParamFromRecipeMultiplier( 0.25 ) );
+			rig.Set( PT_REDUCTANT, ParamFromRecipeMultiplier( 0.5 ) );
 			rig.Set( PT_REACTOR, static_cast< float >( Reactor::Batch ) );
 			rig.Render( 1 );
 			std::vector< double > greens;
@@ -2615,7 +2650,7 @@ int runTraffic( const Perturb& perturb )
 			bool wasRed    = false;
 			const double frameChem = 0.5;
 			const double sat = rig.plugin.CurrentParams()[ chem::P_DY_O2SAT ];
-			for( int f = 0; f * frameChem < 4000.0 && greens.size() < 4; ++f )
+			for( int f = 0; f * frameChem < 12000.0 && greens.size() < 4; ++f )
 			{
 				if( redAt < 0.0 && f * frameChem >= shakeAt )
 				{
@@ -2625,28 +2660,32 @@ int runTraffic( const Perturb& perturb )
 				rig.Chem( frameChem );
 				double rgb[ 3 ];
 				centreRGB( rig, rgb );
-				const Colour c = classify( rgb );
-				if( c == Colour::Red && !wasRed && redAt == 0.0 )
+				const Colour c    = classify( rgb );
+				const bool redNow = c == Colour::Red || c == Colour::Amber;
+				if( redNow && !wasRed && redAt == 0.0 )
 				{
 					greens.push_back( ( f + 1 ) * frameChem - shakeAt );
 					redAt = ( f + 1 ) * frameChem;
 				}
-				wasRed = c == Colour::Red;
-				if( redAt > 0.0 && ( f + 1 ) * frameChem >= redAt + 150.0 )
+				wasRed = redNow;
+				if( redAt > 0.0 && ( f + 1 ) * frameChem >= redAt + 400.0 )
 				{
 					shakeAt = ( f + 1 ) * frameChem;
 					redAt   = -1.0;
 				}
 			}
-			bool lengthening = greens.size() >= 3;
+			//The first green starts from the fresh, fully oxidised and saturated
+			//dish; the cycles after it start from a reduced dish and a dose, and
+			//those are compared.
+			bool lengthening = greens.size() >= 4;
 			std::string what;
 			for( size_t i = 0; i < greens.size(); ++i )
 			{
 				what += fmt( " %.1f", greens[ i ] );
-				if( i > 0 && greens[ i ] <= greens[ i - 1 ] )
+				if( i > 1 && greens[ i ] <= greens[ i - 1 ] )
 					lengthening = false;
 			}
-			Check( lengthening, fmt( "%dx%d  Batch at a quarter of the glucose: the green lasts%s s on successive doses of air (each longer than the last)", raster.w, raster.h, what.c_str() ) );
+			Check( lengthening, fmt( "%dx%d  Batch at half the glucose: the green lasts%s s on successive doses of air (the fresh dish's first, then each longer than the last)", raster.w, raster.h, what.c_str() ) );
 		}
 		//The oxidised colour against the base, from pixels and the pKa.
 		{
@@ -2741,9 +2780,9 @@ int runBlueBottle( const Perturb& perturb )
 			bool wasHigh           = false;
 			const double frameChem = 0.5, ctot = p[ chem::P_DY_CTOT ];
 			std::string timeline;
-			for( int f = 0; f * frameChem < 2400.0; ++f )
+			for( int f = 0; f * frameChem < 4000.0; ++f )
 			{
-				if( f == 0 || f == 2400 )//two doses of air, 1200 s apart
+				if( f == 0 || f == 4000 )//two doses of air, 2000 s apart
 					rig.plugin.DoseForTest( p[ chem::P_DY_O2SAT ] );
 				rig.Chem( frameChem );
 				double rgb[ 3 ], a[ 4 ], b[ 4 ];
@@ -2751,7 +2790,7 @@ int runBlueBottle( const Perturb& perturb )
 				rig.plugin.MeanState( a, b );
 				const Colour c = classify( rgb );
 				colours.push_back( c );
-				if( f % 400 == 0 )
+				if( f % 800 == 0 )
 					timeline += fmt( " %.0fs: O2 %.1e rz %.2f ox %.2f leuco %.2f;", f * frameChem, a[ 0 ], b[ 2 ] / ctot, a[ 2 ] / ctot, b[ 0 ] / ctot );
 				//A fade: the resorufin (the oxidised, pink form) crossing half the dye downwards.
 				if( a[ 2 ] > 0.6 * ctot )
@@ -2781,7 +2820,7 @@ int runBlueBottle( const Perturb& perturb )
 				pinkSeen = pinkSeen || c == Colour::Purple || c == Colour::Red;
 			Note( fmt( "valentine timeline:%s", timeline.c_str() ) );
 			Check( blueFirst && pinkSeen && fades >= 2 && resazurinAfterFirst <= 1e-3 * ctot && maxLater <= 1e-3 * ctot && blueAfterFirst == 0,
-			       fmt( "%dx%d  valentine, two doses of air 1200 s apart: %s; blue first (%s), then pink (%s); %d fades (state); resazurin after the first %.1e of the dye and never above %.1e again (state); %d blue readings after it (pixels)",
+			       fmt( "%dx%d  valentine, two doses of air 2000 s apart: %s; blue first (%s), then pink (%s); %d fades (state); resazurin after the first %.1e of the dye and never above %.1e again (state); %d blue readings after it (pixels)",
 			            raster.w, raster.h, seq.c_str(), blueFirst ? "yes" : "NO", pinkSeen ? "yes" : "NO", fades, resazurinAfterFirst / ctot, maxLater / ctot, blueAfterFirst ) );
 		}
 	}
@@ -2880,6 +2919,7 @@ int runChameleon( const Perturb& perturb )
 			prepare( rig, Reaction::Chameleon, 128, 72 );
 			rig.Set( PT_DISH_WIDTH, ParamFromDishWidth( 60.0 ) );
 			rig.Set( PT_INDICATOR, 0.0f );//no permanganate in the dish: only the drop's
+			rig.Set( PT_REACTOR, static_cast< float >( Reactor::Batch ) );
 			rig.Render( 1 );
 			const chem::Params pDrop  = rig.plugin.CurrentParams();
 			const chem::Recipe rDrop  = rig.plugin.CurrentRecipe();
@@ -2888,6 +2928,7 @@ int runChameleon( const Perturb& perturb )
 			for( int f = 0; f < 240; ++f )
 				rig.Chem( 0.5 );
 			const Floats out = rig.Output();
+			const Floats st  = rig.State();
 			std::string what;
 			int wrong = 0;
 			Colour at[ 3 ], want[ 3 ];
@@ -2901,7 +2942,12 @@ int runChameleon( const Perturb& perturb )
 				const double g       = 0.05 + 0.95 * ( radii[ k ] / 12.0 ) * ( radii[ k ] / 12.0 );
 				const RefTrace local = referenceTrace( Reaction::Chameleon, pDrop, rDrop, 0.15, g * t + 0.01, g * t, 0, rDrop.oxidant );
 				want[ k ]            = local.colour.back();
-				what += fmt( " r%.0f (age %.0f s): %s, reference %s;", radii[ k ], g * t, colourName( at[ k ] ), colourName( want[ k ] ) );
+				double h, s, v;
+				spectra::RGBToHSV( rgb, h, s, v );
+				const float* cell = &st[ ( static_cast< size_t >( 36 ) * 128 + 64 + static_cast< int >( radii[ k ] ) ) * 4 ];
+				const auto& rs    = local.state.back();
+				what += fmt( " r%.0f (age %.0f s): %s (hue %.0f sat %.2f val %.2f; P %.2e M %.2e D %.2e GL %.4f), reference %s (P %.2e M %.2e D %.2e);", radii[ k ], g * t, colourName( at[ k ] ), h, s, v,
+				             cell[ 0 ], cell[ 1 ], cell[ 2 ], cell[ 3 ], colourName( want[ k ] ), rs[ 0 ], rs[ 1 ], rs[ 2 ] );
 				wrong += at[ k ] != want[ k ];
 			}
 			const bool order = ( at[ 0 ] == Colour::Purple ) && at[ 1 ] == Colour::Green && ( at[ 2 ] == Colour::Amber || at[ 2 ] == Colour::Yellow );
@@ -3144,6 +3190,205 @@ int runUnits( const Perturb& perturb )
 }
 
 //===========================================================================
+// --turing: with starch (sigma past the Hopf line) the CDIMA layer forms a
+// stationary pattern whose dominant wavelength is the Lengyel-Epstein
+// model's 2 pi / k_c, in mm, at two Details and two Dish Widths; without
+// starch it stays spatially uniform (and oscillates); uniform light erases it.
+//===========================================================================
+void fft1( std::vector< std::complex< double > >& a )
+{
+	const size_t n = a.size();
+	for( size_t i = 1, j = 0; i < n; ++i )
+	{
+		size_t bit = n >> 1;
+		for( ; j & bit; bit >>= 1 )
+			j ^= bit;
+		j ^= bit;
+		if( i < j )
+			std::swap( a[ i ], a[ j ] );
+	}
+	for( size_t len = 2; len <= n; len <<= 1 )
+	{
+		const double ang = -2.0 * kPi / static_cast< double >( len );
+		const std::complex< double > wl( std::cos( ang ), std::sin( ang ) );
+		for( size_t i = 0; i < n; i += len )
+		{
+			std::complex< double > w( 1.0, 0.0 );
+			for( size_t j = 0; j < len / 2; ++j )
+			{
+				const std::complex< double > u = a[ i + j ], v = a[ i + j + len / 2 ] * w;
+				a[ i + j ]           = u + v;
+				a[ i + j + len / 2 ] = u - v;
+				w *= wl;
+			}
+		}
+	}
+}
+
+/// The radial power spectrum of a cols x rows field (both powers of two):
+/// bin b holds the power at |k| in [b, b+1) cycles per the x extent.
+std::vector< double > radialPower( const std::vector< double >& field, int cols, int rows )
+{
+	std::vector< std::complex< double > > f( static_cast< size_t >( cols ) * rows );
+	double mean = 0.0;
+	for( double v : field )
+		mean += v / field.size();
+	for( size_t i = 0; i < f.size(); ++i )
+		f[ i ] = std::complex< double >( field[ i ] - mean, 0.0 );
+	std::vector< std::complex< double > > line( cols );
+	for( int y = 0; y < rows; ++y )
+	{
+		for( int xx = 0; xx < cols; ++xx )
+			line[ xx ] = f[ static_cast< size_t >( y ) * cols + xx ];
+		fft1( line );
+		for( int xx = 0; xx < cols; ++xx )
+			f[ static_cast< size_t >( y ) * cols + xx ] = line[ xx ];
+	}
+	std::vector< std::complex< double > > col( rows );
+	for( int xx = 0; xx < cols; ++xx )
+	{
+		for( int y = 0; y < rows; ++y )
+			col[ y ] = f[ static_cast< size_t >( y ) * cols + xx ];
+		fft1( col );
+		for( int y = 0; y < rows; ++y )
+			f[ static_cast< size_t >( y ) * cols + xx ] = col[ y ];
+	}
+	std::vector< double > power( static_cast< size_t >( cols / 2 ) + 1, 0.0 );
+	for( int y = 0; y < rows; ++y )
+		for( int xx = 0; xx < cols; ++xx )
+		{
+			const double kx = xx <= cols / 2 ? xx : xx - cols;
+			const double ky = ( y <= rows / 2 ? y : y - rows ) * static_cast< double >( cols ) / rows;//cycles per x extent
+			const double kr = std::sqrt( kx * kx + ky * ky );
+			const size_t b = static_cast< size_t >( kr );
+			if( b < power.size() )
+				power[ b ] += std::norm( f[ static_cast< size_t >( y ) * cols + xx ] );
+		}
+	return power;
+}
+
+int runTuring( const Perturb& perturb )
+{
+	std::printf( "\n=== turing: CDIMA with starch forms a pattern at the Lengyel-Epstein wavelength, at two Details and two Dish Widths; without starch it stays uniform; uniform light erases it\n" );
+	const chem::Recipe recipe = chem::BaseRecipe( Reaction::CDIMA );
+	const chem::LEModel m     = chem::MakeLE( recipe );
+	const double sigmaHopf    = ( 3.0 * m.a / 5.0 - 25.0 / m.a ) / m.b;
+	Note( fmt( "the model at the 1x recipe: a %.2f, b %.3f, sigma %.1f (the Hopf line is at sigma %.1f), d %.3f; Turing k_c %.3f per x' (x' = %.4f mm), wavelength %.4f mm", m.a, m.b, m.sigma, sigmaHopf, m.d, m.kc, m.xScale, m.lambdaMm ) );
+	struct Case
+	{
+		int cols, rows;
+		double dishMm;
+	};
+	const Case cases[] = { { 512, 256, 10.0 }, { 1024, 512, 10.0 }, { 512, 256, 5.0 } };
+	for( const Raster& raster : kRasters )
+	{
+		int wrong = 0;
+		std::string what;
+		for( const Case& c : cases )
+		{
+			Rig rig;
+			if( !rig.Init( raster.w, raster.h ) )
+				return 1;
+			prepare( rig, Reaction::CDIMA, c.cols, c.rows );
+			rig.Set( PT_DISH_WIDTH, ParamFromDishWidth( c.dishMm ) );
+			rig.Set( PT_REACTOR, static_cast< float >( Reactor::Flow ) );
+			if( perturb.turingNoD )
+				rig.plugin.SetParamOverrideForTest( chem::P_LE_D, static_cast< float >( 1.0 / m.sigma ) );//the inhibitor as slow as the activator
+			rig.Render( 1 );
+			for( int f = 0; f < 240; ++f )
+				rig.Chem( 0.5 );//120 s: a few hundred t'
+			const Floats st = rig.State();
+			std::vector< double > u( static_cast< size_t >( c.cols ) * c.rows );
+			double mean = 0.0, sq = 0.0;
+			for( size_t i = 0; i < u.size(); ++i )
+			{
+				u[ i ] = st[ i * 4 ];
+				mean += u[ i ] / u.size();
+			}
+			for( double v : u )
+				sq += ( v - mean ) * ( v - mean ) / u.size();
+			const double contrast = mean > 0.0 ? std::sqrt( sq ) / mean : 0.0;
+			const std::vector< double > power = radialPower( u, c.cols, c.rows );
+			size_t peak = 1;
+			for( size_t b = 2; b < power.size(); ++b )
+				if( power[ b ] > power[ peak ] )
+					peak = b;
+			const double cellMm = rig.plugin.CellMm();
+			const double extent = c.cols * cellMm;
+			const double lambda = extent / static_cast< double >( peak );
+			//One FFT bin: the wavenumber 1 / lambda within 1 / extent of 1 / lambda_c.
+			const bool ok = contrast > 0.1 && std::fabs( 1.0 / lambda - 1.0 / m.lambdaMm ) <= 1.0 / extent;
+			wrong += !ok;
+			what += fmt( " %d cells over %g mm (%.4f mm cells): contrast %.2f, wavelength %.4f mm (bin %zu of %.0f, model %.4f)%s;", c.cols, c.dishMm, cellMm, contrast, lambda, peak, extent / m.lambdaMm, m.lambdaMm, ok ? "" : " OUT" );
+		}
+		Check( wrong == 0, fmt( "%dx%d %s %d wrong", raster.w, raster.h, what.c_str(), wrong ) );
+		//No starch: sigma 1, below the Hopf line: the dish oscillates as one, no pattern.
+		{
+			Rig rig;
+			if( !rig.Init( raster.w, raster.h ) )
+				return 1;
+			prepare( rig, Reaction::CDIMA, 512, 256 );
+			rig.Set( PT_DISH_WIDTH, ParamFromDishWidth( 10.0 ) );
+			rig.Set( PT_REACTOR, static_cast< float >( Reactor::Flow ) );
+			rig.Set( PT_INDICATOR, 0.0f );
+			rig.Render( 1 );
+			double worstContrast = 0.0, lo = 1e9, hi = -1e9;
+			for( int f = 0; f < 240; ++f )
+			{
+				rig.Chem( 0.5 );
+				if( f % 10 == 9 )
+				{
+					const Floats st = rig.State();
+					double mean = 0.0, sq = 0.0;
+					const size_t n = st.size() / 4;
+					for( size_t i = 0; i < n; ++i )
+						mean += st[ i * 4 ] / n;
+					for( size_t i = 0; i < n; ++i )
+						sq += ( st[ i * 4 ] - mean ) * ( st[ i * 4 ] - mean ) / n;
+					worstContrast = std::max( worstContrast, mean > 0.0 ? std::sqrt( sq ) / mean : 0.0 );
+					lo            = std::min( lo, mean );
+					hi            = std::max( hi, mean );
+				}
+			}
+			Check( worstContrast < 0.02 && hi > 1.2 * lo, fmt( "%dx%d  without starch (sigma 1): spatial contrast at most %.4f over 120 s; the mean swings from %.3f to %.3f (it oscillates as one)",
+			                                                      raster.w, raster.h, worstContrast, lo, hi ) );
+		}
+		//Uniform light through the Over: the clip white, Light Coupling 1.
+		{
+			Floats white( static_cast< size_t >( raster.w ) * raster.h * 4, 1.0f );
+			Rig rig( true );
+			if( !rig.Init( raster.w, raster.h, &white ) )
+				return 1;
+			prepare( rig, Reaction::CDIMA, 512, 256 );
+			rig.Set( PT_DISH_WIDTH, ParamFromDishWidth( 10.0 ) );
+			rig.Set( PT_REACTOR, static_cast< float >( Reactor::Flow ) );
+			rig.Set( PT_SEED_FROM_CLIP, 0.0f );
+			rig.Set( PT_LIGHT_COUPLING, 0.0f );
+			rig.Render( 1 );
+			for( int f = 0; f < 240; ++f )
+				rig.Chem( 0.5 );
+			auto contrastNow = [ & ]() {
+				const Floats st = rig.State();
+				double mean = 0.0, sq = 0.0;
+				const size_t n = st.size() / 4;
+				for( size_t i = 0; i < n; ++i )
+					mean += st[ i * 4 ] / n;
+				for( size_t i = 0; i < n; ++i )
+					sq += ( st[ i * 4 ] - mean ) * ( st[ i * 4 ] - mean ) / n;
+				return mean > 0.0 ? std::sqrt( sq ) / mean : 0.0;
+			};
+			const double before = contrastNow();
+			rig.Set( PT_LIGHT_COUPLING, 1.0f );
+			for( int f = 0; f < 240; ++f )
+				rig.Chem( 0.5 );
+			const double lit = contrastNow();
+			Check( before > 0.1 && lit < 0.1 * before, fmt( "%dx%d  the pattern's contrast %.3f in the dark, %.4f after 120 s under the Over's white clip at Light Coupling 1", raster.w, raster.h, before, lit ) );
+		}
+	}
+	return Verdict();
+}
+
+//===========================================================================
 // The registry of checks.
 //===========================================================================
 struct CheckEntry
@@ -3163,7 +3408,7 @@ const std::vector< CheckEntry >& checks()
 		{ "spiral", runSpiral, false },      { "photo", runPhoto, false },       { "clock", runClock, false },
 		{ "sync", runSync, false },          { "briggs", runBriggs, false },     { "traffic", runTraffic, false },
 		{ "bluebottle", runBlueBottle, false }, { "chameleon", runChameleon, false }, { "stir", runStir, false },
-		{ "units", runUnits, false },
+		{ "units", runUnits, false },        { "turing", runTuring, false },
 	};
 	return list;
 }
@@ -3213,6 +3458,7 @@ int runNegative( bool offlineOnly )
 	add( "chameleon", runChameleon, "the plugin's two constants swapped", []( Perturb& p ) { p.chameleonSwap = true; } );
 	add( "stir", runStir, "Stir ignored", []( Perturb& p ) { p.stirOff = true; } );
 	add( "units", runUnits, "the cell 0.1 mm whatever Dish Width says", []( Perturb& p ) { p.unitsWrong = true; } );
+	add( "turing", runTuring, "the inhibitor diffusing as slowly as the activator", []( Perturb& p ) { p.turingNoD = true; } );
 	if( offlineOnly )
 		cases.erase( std::remove_if( cases.begin(), cases.end(), []( const Case& c ) { return !isOffline( c.name ); } ), cases.end() );
 	int unfalsifiable = 0;
@@ -3316,7 +3562,7 @@ int main( int argc, char** argv )
 			             "  --set \"Name=V\"    set a parameter by its display name. Repeatable.\n"
 			             "  --list            every parameter and its default\n\n"
 			             "  checks (GL): --state --prime --resize --timebase --beer --over-check --oregonator --fieldnoyes --spiral --photo\n"
-			             "               --clock --sync --briggs --traffic --bluebottle --chameleon --stir --units\n"
+			             "               --clock --sync --briggs --traffic --bluebottle --chameleon --stir --units --turing\n"
 			             "  checks (no GL): --names --spectra --transport --timebase-law\n"
 			             "  --negative   --offline   --bench\n" );
 			return 0;
