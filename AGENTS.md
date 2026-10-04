@@ -415,6 +415,17 @@ pass on a dead dish. All 20 are detected at 320x180:
 | `--units` | the cell 0.1 mm whatever Dish Width says |
 | `--turing` | the inhibitor diffusing as slowly as the activator |
 
+**A cue held from frame 0 pressed the button at frame 0.** The fleet's
+`valueAt` holds a track's first key before its frame, which is right for a
+slider's initial value and wrong for an event: `2 Drop 1` dropped at frame
+0 and the verify step's "frames 0–1 identical" caught it. `runPipe` leaves a
+parameter untouched until its first key (its default stands), so a press
+lands where it is cued and a `0` key is needed to press again. A cue's name
+is the longest run of words that is a parameter (`Drop`, `Drop Size`, `Drop
+Position` all exist) and the rest is the value, so `0 Reaction Chemical
+Chameleon` reads; a value that is not a number or one of the option's names
+is refused (`strtof( "Fixed" )` is silently 0: polyhedral).
+
 **A mutant can hang.** The first transport mutant inverted the lead loop's
 test (`while( wait < lead )` → `>`), which never returns, and `mutate.sh`
 sat on it for ten minutes with nothing to say. The script now runs each
@@ -481,7 +492,8 @@ clip), which is what the table is for.
 - `source/BrEngine.*` — Briggs–Rauscher on the CPU.
 - `source/SourcePlugin.cpp`, `EffectPlugin.cpp` — the two registrations.
 - `tools/hdtest/main.cpp` — the harness: the rig, the colour classifier, the
-  references, every check, the negative controls, the bench.
+  references, every check, the negative controls, the bench, and the fleet's
+  `--pipe` / `--film` / `--script` filming modes (raw RGBA, cue sheets).
 - `tools/sweep.py`, `tools/mutate.sh`, `tools/verify.sh`, `tools/glslc.sh`,
   `tools/bake_cie.py`.
 

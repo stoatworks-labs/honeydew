@@ -20,6 +20,10 @@ tables or the sync logic; `docs/CHEMISTRY.md` is where every number comes from.
 - List parameters: `./build/hdtest --list` (`--over` for the effect's)
 - Set anything by name: `./build/hdtest --set "Reaction=5" --set "Depth=0.7"` (options by element index); `--set "Break Wave=1@100"` presses it at frame 100
 - A beat into the Audio buffer: `--beat`; a raster: `--size WxH`; the clock's rate: `--fps`
+- Film: `./build/hdtest --pipe --frames 1800 --script cues.txt | ffmpeg -f rawvideo -pix_fmt rgba -s 1280x720 -r 60 -i - take.mp4`
+  (the source); `--over --pipe` takes raw RGBA frames in on stdin; `--film N` is N frames of the
+  Over on its card. `--script` is the fleet's cue sheet: `frame Name value` lines, options by
+  name, events pressed by a `1` (then a `0` to press again); a wrong name or value is refused.
 
 ## Verify
 - Everything: `tools/verify.sh` (~15 min: reserved words, glslc, the pin, a fresh
@@ -80,7 +84,9 @@ tables or the sync logic; `docs/CHEMISTRY.md` is where every number comes from.
 
 ## Not done yet
 - Never loaded into Resolume (oxbow probe and selftest only). No Windows build
-  has run. No OpenFX port, no browser demo, no user guide.
+  has run. No OpenFX port, no browser demo. The user guide is
+  `docs/USER-GUIDE.md` (its Windows/Arena sentence is a placeholder until the
+  Arena gate).
 - **Convection is not built**: the control is declared by neither plugin
   (AGENTS.md). Chemoconvection's `--rayleigh` and `--chemoconvection` do not exist.
 

@@ -202,6 +202,73 @@ step "Dead controls"
 python3 tools/sweep.py --build "$BUILD" || fail "a dead control"
 
 #---------------------------------------------------------------------------
+step "Pipe"
+#---------------------------------------------------------------------------
+# The fleet's --pipe frame format, which the video renders through. Two and a
+# half frames in must be exactly two out and a clean exit -- a partial frame is
+# the end of the stream, never a frame -- the source's --pipe --frames N must be
+# N frames, a cue naming no parameter must be refused, a cue whose value is not
+# one of an option's names must be refused (strtof( "Fixed" ) is 0, polyhedral),
+# an event must be pressable from a cue, and a reader that hangs up must end
+# the run with exit 1, not SIGPIPE's silent 141, for the source's --pipe, the
+# effect's --pipe and --film alike.
+frame=$(( 64 * 36 * 4 ))
+raw=$( mktemp ); cues=$( mktemp ); out=$( mktemp ); out2=$( mktemp )
+head -c $(( frame * 5 / 2 )) /dev/zero > "$raw"
+status=0
+"$HDTEST" --over --pipe --size 64x36 < "$raw" > "$out" 2>/dev/null || status=$?
+got=$( wc -c < "$out" | tr -d ' ' )
+[[ "$status" -eq 0 && "$got" == "$(( frame * 2 ))" ]] \
+	|| fail "2.5 frames into the Over gave $got bytes out (want $(( frame * 2 ))), exit $status"
+echo "ok   Over: 2.5 frames in, exactly 2 frames out, clean exit"
+status=0
+"$HDTEST" --pipe --size 64x36 --frames 3 > "$out" 2>/dev/null || status=$?
+got=$( wc -c < "$out" | tr -d ' ' )
+[[ "$status" -eq 0 && "$got" == "$(( frame * 3 ))" ]] || fail "the source's --pipe --frames 3 gave $got bytes, exit $status"
+echo "ok   source: --pipe --frames 3 is exactly 3 frames, clean exit"
+status=0
+"$HDTEST" --film 3 --size 64x36 > "$out" 2>/dev/null || status=$?
+got=$( wc -c < "$out" | tr -d ' ' )
+[[ "$status" -eq 0 && "$got" == "$(( frame * 3 ))" ]] || fail "--film 3 gave $got bytes, exit $status"
+echo "ok   --film 3 is exactly 3 frames of the Over, clean exit"
+# Read from a file, not a pipe: a writer killed by SIGPIPE would fail the
+# pipeline whatever hdtest did, and the refusal would pass for the wrong reason.
+printf '0 No Such Control 0.5\n' > "$cues"
+status=0
+"$HDTEST" --over --pipe --size 64x36 --script "$cues" < "$raw" >/dev/null 2>&1 || status=$?
+[[ "$status" -eq 2 ]] || fail "a cue naming no parameter gave exit $status, not 2"
+echo "ok   a cue naming no parameter is refused (exit 2)"
+printf '0 Reaction Fixed\n' > "$cues"
+status=0
+"$HDTEST" --pipe --size 64x36 --frames 1 --script "$cues" >/dev/null 2>&1 || status=$?
+[[ "$status" -eq 2 ]] || fail "a cue giving an option a value that is not one of its names gave exit $status, not 2"
+echo "ok   a cue giving Reaction the value 'Fixed' is refused (exit 2), not silently 0"
+# An option by name and a press from a cue: the chameleon with a Drop at frame
+# 2 is a different third frame from the same take without the press.
+printf '0 Reaction Chemical Chameleon\n0 Drop Position Centre\n0 Drop Size 1\n2 Drop 1\n' > "$cues"
+printf '0 Reaction Chemical Chameleon\n0 Drop Position Centre\n0 Drop Size 1\n' > "$raw"
+status=0
+"$HDTEST" --pipe --size 64x36 --frames 4 --script "$cues" > "$out" 2>/dev/null || status=$?
+[[ "$status" -eq 0 ]] || fail "the cued take gave exit $status"
+"$HDTEST" --pipe --size 64x36 --frames 4 --script "$raw" > "$out2" 2>/dev/null || fail "the uncued take failed"
+cmp -s <( head -c $(( frame * 2 )) "$out" ) <( head -c $(( frame * 2 )) "$out2" ) || fail "the takes differ before the cued Drop"
+cmp -s "$out" "$out2" && fail "a Drop cued at frame 2 changed nothing"
+echo "ok   options by name (Chemical Chameleon, Centre) and a Drop pressed from a cue at frame 2: frames 0-1 identical, the take differs after it"
+head -c $(( frame * 20 )) /dev/zero > "$raw"
+set +e
+"$HDTEST" --pipe --size 64x36 2>/dev/null | head -c 1 >/dev/null
+s1=${PIPESTATUS[0]}
+"$HDTEST" --over --pipe --size 64x36 < "$raw" 2>/dev/null | head -c 1 >/dev/null
+s2=${PIPESTATUS[0]}
+"$HDTEST" --film 20 --size 64x36 2>/dev/null | head -c 1 >/dev/null
+s3=${PIPESTATUS[0]}
+set -e
+[[ "$s1" -eq 1 && "$s2" -eq 1 && "$s3" -eq 1 ]] \
+	|| fail "a closed stdout gave exit $s1 (source --pipe), $s2 (Over --pipe), $s3 (--film), not 1"
+echo "ok   | head -c 1: exit 1 from the source's --pipe, the Over's --pipe and --film, not SIGPIPE's 141"
+rm -f "$raw" "$cues" "$out" "$out2"
+
+#---------------------------------------------------------------------------
 step "Cost"
 #---------------------------------------------------------------------------
 "$HDTEST" --bench

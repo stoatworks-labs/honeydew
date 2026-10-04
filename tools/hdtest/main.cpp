@@ -36,6 +36,7 @@
 #include <chrono>
 #include <cmath>
 #include <complex>
+#include <cctype>
 #include <csignal>
 #include <cstdarg>
 #include <cstdint>
@@ -501,6 +502,53 @@ std::vector< NamedParameter > listParameters( HoneydewPlugin& plugin )
 	return list;
 }
 
+/// A value for a parameter, from text: a number, or for an option one of its
+/// element names (case-insensitive) or its index. Anything else is refused:
+/// `strtof( "Fixed" )` silently becomes 0 (polyhedral), and a cue that
+/// silently did nothing would film a take that looks deliberate and is wrong.
+bool resolveValue( HoneydewPlugin& plugin, const NamedParameter& parameter, const std::string& text, float& out, std::string& error )
+{
+	auto lower = []( std::string s ) {
+		for( char& c : s )
+			c = static_cast< char >( std::tolower( static_cast< unsigned char >( c ) ) );
+		return s;
+	};
+	if( parameter.type == FF_TYPE_OPTION )
+	{
+		const unsigned int count = plugin.GetNumParamElements( parameter.index );
+		for( unsigned int k = 0; k < count; ++k )
+		{
+			const char* const element = plugin.GetParamElementName( parameter.index, k );
+			if( element && lower( element ) == lower( text ) )
+			{
+				out = static_cast< float >( k );
+				return true;
+			}
+		}
+	}
+	char* end        = nullptr;
+	const float v    = std::strtof( text.c_str(), &end );
+	const bool whole = end && *end == '\0' && end != text.c_str();
+	if( !whole )
+	{
+		error = "'" + text + "' is not a value for " + parameter.name;
+		if( parameter.type == FF_TYPE_OPTION )
+		{
+			error += " (its options:";
+			const unsigned int count = plugin.GetNumParamElements( parameter.index );
+			for( unsigned int k = 0; k < count; ++k )
+			{
+				const char* const element = plugin.GetParamElementName( parameter.index, k );
+				error += std::string( " '" ) + ( element ? element : "?" ) + "'";
+			}
+			error += ")";
+		}
+		return false;
+	}
+	out = v;
+	return true;
+}
+
 bool applySetting( HoneydewPlugin& plugin, const std::string& assignment, std::string& error )
 {
 	const size_t equals = assignment.find( '=' );
@@ -514,11 +562,295 @@ bool applySetting( HoneydewPlugin& plugin, const std::string& assignment, std::s
 	for( const NamedParameter& parameter : listParameters( plugin ) )
 		if( parameter.name == name )
 		{
-			plugin.SetFloatParameter( parameter.index, std::strtof( value.c_str(), nullptr ) );
+			float v = 0.0f;
+			if( !resolveValue( plugin, parameter, value, v, error ) )
+				return false;
+			plugin.SetFloatParameter( parameter.index, v );
 			return true;
 		}
 	error = "no parameter called '" + name + "'";
 	return false;
+}
+
+//---------------------------------------------------------------------------
+// The cue sheet (the fleet's format): `frame  Parameter Name  value` lines,
+// `#` comments. A control whose value is a choice, a switch, a press or a
+// count STEPS between keys; only a standard control ramps.
+//---------------------------------------------------------------------------
+bool stepsBetweenCues( unsigned int type )
+{
+	return type == FF_TYPE_OPTION || type == FF_TYPE_BOOLEAN || type == FF_TYPE_EVENT || type == FF_TYPE_INTEGER;
+}
+
+using Track    = std::vector< std::pair< int, float > >;
+using RawTrack = std::vector< std::pair< int, std::string > >;
+
+/// Each line is `frame Parameter Name value`, where the name is the longest
+/// run of words that is one of `names` and the rest is the value, so
+/// `0 Drop Position Centre` and `0 Reaction Chemical Chameleon` both read
+/// (an option's name may have spaces, and `Drop`, `Drop Size` and `Drop
+/// Position` all exist). A line naming no parameter is an error.
+std::map< std::string, RawTrack > loadScript( std::istream& in, const std::string& path, const std::vector< std::string >& names, std::string& error )
+{
+	std::map< std::string, RawTrack > tracks;
+	std::string line;
+	int lineNumber = 0;
+	while( std::getline( in, line ) )
+	{
+		++lineNumber;
+		const size_t hash = line.find( '#' );
+		if( hash != std::string::npos )
+			line.erase( hash );
+		std::istringstream words( line );
+		int frame = 0;
+		if( !( words >> frame ) )
+			continue;
+		std::vector< std::string > parts;
+		std::string word;
+		while( words >> word )
+			parts.push_back( word );
+		if( parts.size() < 2 )
+		{
+			error = path + ":" + std::to_string( lineNumber ) + ": expected `frame Parameter Name value`";
+			return {};
+		}
+		auto joined = [ & ]( size_t from, size_t to ) {
+			std::string s;
+			for( size_t i = from; i < to; ++i )
+				s += ( i > from ? " " : "" ) + parts[ i ];
+			return s;
+		};
+		size_t split = 0;
+		for( size_t n = parts.size() - 1; n >= 1; --n )
+			if( std::find( names.begin(), names.end(), joined( 0, n ) ) != names.end() )
+			{
+				split = n;
+				break;
+			}
+		if( split == 0 )
+		{
+			error = "script names '" + joined( 0, parts.size() - 1 ) + "', which is not a parameter (try --list)";
+			return {};
+		}
+		tracks[ joined( 0, split ) ].emplace_back( frame, joined( split, parts.size() ) );
+	}
+	for( auto& entry : tracks )
+		std::stable_sort( entry.second.begin(), entry.second.end(),
+		                  []( const std::pair< int, std::string >& a, const std::pair< int, std::string >& b ) { return a.first < b.first; } );
+	return tracks;
+}
+
+/// The value at `frame`: held after the last key (and before the first, but
+/// runPipe leaves a parameter alone until its first key); between two keys
+/// linear if `ramp`, otherwise the earlier key's value until the later key's
+/// frame.
+float valueAt( const Track& track, int frame, bool ramp )
+{
+	if( track.empty() )
+		return 0.0f;
+	if( frame <= track.front().first )
+		return track.front().second;
+	if( frame >= track.back().first )
+		return track.back().second;
+	for( size_t i = 0; i + 1 < track.size(); ++i )
+	{
+		const auto& a = track[ i ];
+		const auto& b = track[ i + 1 ];
+		if( frame >= a.first && frame < b.first )
+		{
+			if( !ramp )
+				return a.second;
+			const float t = static_cast< float >( frame - a.first ) / static_cast< float >( b.first - a.first );
+			return a.second + ( b.second - a.second ) * t;
+		}
+	}
+	return track.back().second;
+}
+
+struct Cue
+{
+	Track track;
+	bool ramp;
+};
+
+/// The cue sheet bound to a plugin's parameters, or an error naming the cue:
+/// a name that is not a parameter, or a value that is not one of its.
+bool bindScript( HoneydewPlugin& plugin, const std::string& path, std::map< unsigned int, Cue >& out, std::string& error )
+{
+	std::ifstream file( path );
+	if( !file )
+	{
+		error = "cannot open " + path;
+		return false;
+	}
+	const std::vector< NamedParameter > known = listParameters( plugin );
+	std::vector< std::string > names;
+	for( const NamedParameter& parameter : known )
+		names.push_back( parameter.name );
+	const std::map< std::string, RawTrack > tracks = loadScript( file, path, names, error );
+	if( !error.empty() )
+		return false;
+	for( const auto& entry : tracks )
+	{
+		bool found = false;
+		for( const NamedParameter& parameter : known )
+			if( parameter.name == entry.first )
+			{
+				Track track;
+				for( const auto& key : entry.second )
+				{
+					float v = 0.0f;
+					if( !resolveValue( plugin, parameter, key.second, v, error ) )
+					{
+						error = path + ": at frame " + std::to_string( key.first ) + ": " + error;
+						return false;
+					}
+					track.emplace_back( key.first, v );
+				}
+				out[ parameter.index ] = Cue { track, !stepsBetweenCues( parameter.type ) };
+				found                  = true;
+			}
+		if( !found )
+		{
+			error = "script names '" + entry.first + "', which is not a parameter (try --list)";
+			return false;
+		}
+	}
+	return true;
+}
+
+//===========================================================================
+// --pipe and --film. Raw RGBA, top row first, on the synthetic clock.
+//===========================================================================
+/// `readStdin`: the Over effect's frames come in on stdin, one out per one in,
+/// until a partial frame or EOF. Otherwise frames are made -- `count` of them,
+/// or, with `count` 0, until the reader hangs up (so that mode only ever ends
+/// with exit 1; use a count for a take that can end cleanly). Without stdin
+/// the Over runs on the harness's card.
+int runPipe( bool effect, int width, int height, double fps, const std::string& scriptPath, int count, bool readStdin,
+             bool beat, const std::vector< std::string >& settings )
+{
+	Rig rig( effect );
+	rig.fps = fps;
+	if( !rig.Init( width, height ) )
+		return 1;
+	if( beat )
+		rig.feed = AudioFeed::Pulses;
+	//A misspelt cue that silently did nothing would film a take that looks
+	//deliberate and is wrong: refuse any name that is not a parameter.
+	std::map< unsigned int, Cue > automation;
+	if( !scriptPath.empty() )
+	{
+		std::string error;
+		if( !bindScript( rig.plugin, scriptPath, automation, error ) )
+		{
+			std::fprintf( stderr, "%s\n", error.c_str() );
+			return 2;
+		}
+	}
+	//"Name=V" now; "Name=V@F" is a cue at frame F.
+	for( const std::string& setting : settings )
+	{
+		std::string error;
+		const size_t at = setting.find( '@' );
+		if( at == std::string::npos )
+		{
+			if( !applySetting( rig.plugin, setting, error ) )
+			{
+				std::fprintf( stderr, "--set %s: %s\n", setting.c_str(), error.c_str() );
+				return 2;
+			}
+			continue;
+		}
+		const std::string assignment = setting.substr( 0, at );
+		const int frame              = std::atoi( setting.c_str() + at + 1 );
+		const size_t equals          = assignment.find( '=' );
+		bool found                   = false;
+		for( const NamedParameter& parameter : listParameters( rig.plugin ) )
+			if( equals != std::string::npos && parameter.name == assignment.substr( 0, equals ) )
+			{
+				float v = 0.0f;
+				if( !resolveValue( rig.plugin, parameter, assignment.substr( equals + 1 ), v, error ) )
+				{
+					std::fprintf( stderr, "--set %s: %s\n", setting.c_str(), error.c_str() );
+					return 2;
+				}
+				Cue& cue = automation[ parameter.index ];
+				cue.ramp = !stepsBetweenCues( parameter.type );
+				cue.track.emplace_back( frame, v );
+				std::stable_sort( cue.track.begin(), cue.track.end(), []( const auto& a, const auto& b ) { return a.first < b.first; } );
+				found = true;
+			}
+		if( !found )
+		{
+			std::fprintf( stderr, "--set %s: no parameter called '%s'\n", setting.c_str(), assignment.substr( 0, equals ).c_str() );
+			return 2;
+		}
+	}
+
+	Bytes in( static_cast< size_t >( width ) * height * 4 );
+	Floats picture( in.size() );
+	for( int index = 0; readStdin || count <= 0 || index < count; ++index )
+	{
+		if( readStdin )
+		{
+			size_t filled = 0;
+			while( filled < in.size() )
+			{
+				const ssize_t got = read( STDIN_FILENO, in.data() + filled, in.size() - filled );
+				if( got <= 0 )
+					break;
+				filled += static_cast< size_t >( got );
+			}
+			//A partial frame is the end of the stream, never a frame.
+			if( filled < in.size() )
+			{
+				if( filled > 0 )
+					std::fprintf( stderr, "partial frame at the end (%zu of %zu bytes): dropped\n", filled, in.size() );
+				break;
+			}
+			for( int y = 0; y < height; ++y )
+				for( int x = 0; x < width * 4; ++x )
+					picture[ static_cast< size_t >( height - 1 - y ) * width * 4 + x ] = in[ static_cast< size_t >( y ) * width * 4 + x ] / 255.0f;
+			if( effect )
+				rig.Upload( picture );
+		}
+
+		//Through the plugin's own setter, so a cue moves what a slider would.
+		//A parameter is untouched before its first key (its default stands),
+		//so `120 Drop 1` presses at frame 120, not at frame 0: a press is the
+		//rising edge the plugin sees, and it takes a `0` key to press again.
+		for( const auto& cue : automation )
+			if( index >= cue.second.track.front().first )
+				rig.plugin.SetFloatParameter( cue.first, valueAt( cue.second.track, index, cue.second.ramp ) );
+		if( !rig.Render( 1 ) )
+			return 1;
+
+		const Floats out = rig.Output();
+		Bytes bytes( in.size() );
+		for( int y = 0; y < height; ++y )
+			for( int x = 0; x < width * 4; ++x )
+			{
+				//The source is the lightbox: opaque. The Over keeps the clip's alpha.
+				const float v = ( !effect && x % 4 == 3 ) ? 1.0f : out[ static_cast< size_t >( height - 1 - y ) * width * 4 + x ];
+				bytes[ static_cast< size_t >( y ) * width * 4 + x ] = static_cast< unsigned char >( std::lround( std::clamp( v, 0.0f, 1.0f ) * 255.0f ) );
+			}
+		size_t written = 0;
+		while( written < bytes.size() )
+		{
+			const ssize_t put = write( STDOUT_FILENO, bytes.data() + written, bytes.size() - written );
+			//The reader has gone (`| head -c 1`, ffmpeg dying). SIGPIPE is
+			//ignored in main(), so this is EPIPE and not a silent 141: say so
+			//and stop, rather than render on into a closed pipe.
+			if( put <= 0 )
+			{
+				std::fprintf( stderr, "stdout closed at frame %d\n", index );
+				return 1;
+			}
+			written += static_cast< size_t >( put );
+		}
+	}
+	return 0;
 }
 
 //===========================================================================
@@ -3640,8 +3972,9 @@ int main( int argc, char** argv )
 	std::vector< std::string > settings;
 	int width = 1280, height = 720, frames = 300;
 	double fps = 60.0;
-	bool beat = false, effect = false, sizeGiven = false;
-	std::string mode;
+	bool beat = false, effect = false, sizeGiven = false, framesGiven = false;
+	int filmFrames = 0;
+	std::string mode, scriptPath;
 	for( int i = 1; i < argc; ++i )
 	{
 		const std::string argument = argv[ i ];
@@ -3655,8 +3988,13 @@ int main( int argc, char** argv )
 			             "  --frames N        frames before reading back (default 300: 5 s)\n"
 			             "  --fps N           the synthetic clock's rate (default 60)\n"
 			             "  --beat            feed a beat every half second into the Audio buffer\n"
-			             "  --set \"Name=V\"    set a parameter by its display name; \"Name=V@F\" sets it at frame F. Repeatable.\n"
-			             "  --list            every parameter and its default\n\n"
+			             "  --set \"Name=V\"    set a parameter by its display name (an option by its name or index);\n"
+			             "                    \"Name=V@F\" sets it at frame F. Repeatable.\n"
+			             "  --list            every parameter and its default\n"
+			             "  --pipe            raw RGBA out, top row first: the source makes --frames N (0/absent: until the\n"
+			             "                    reader hangs up); the Over effect (--over) takes frames in on stdin\n"
+			             "  --film N          N frames of the Over on its card, raw RGBA on stdout\n"
+			             "  --script PATH     cues for --pipe/--film: 'frame Name value' lines; a wrong name or value is refused\n\n"
 			             "  checks (GL): --state --prime --resize --timebase --beer --over-check --oregonator --fieldnoyes --spiral --photo\n"
 			             "               --clock --sync --briggs --traffic --bluebottle --chameleon --stir --units --turing\n"
 			             "  checks (no GL): --names --spectra --transport --timebase-law\n"
@@ -3668,7 +4006,19 @@ int main( int argc, char** argv )
 		else if( argument == "--set" && hasNext )
 			settings.push_back( argv[ ++i ] );
 		else if( argument == "--frames" && hasNext )
-			frames = std::atoi( argv[ ++i ] );
+		{
+			frames      = std::atoi( argv[ ++i ] );
+			framesGiven = true;
+		}
+		else if( argument == "--pipe" )
+			mode = "pipe";
+		else if( argument == "--film" && hasNext )
+		{
+			mode       = "film";
+			filmFrames = std::max( 1, std::atoi( argv[ ++i ] ) );
+		}
+		else if( argument == "--script" && hasNext )
+			scriptPath = argv[ ++i ];
 		else if( argument == "--fps" && hasNext )
 			fps = std::strtod( argv[ ++i ], nullptr );
 		else if( argument == "--beat" )
@@ -3718,6 +4068,10 @@ int main( int argc, char** argv )
 	}
 	std::signal( SIGPIPE, SIG_IGN );
 
+	//A reader that hangs up must end --pipe/--film with exit 1 and a message,
+	//not SIGPIPE's silent 141: ignored here, the write fails with EPIPE.
+	std::signal( SIGPIPE, SIG_IGN );
+
 	if( mode == "offline" )
 	{
 		int failed = 0;
@@ -3750,6 +4104,13 @@ int main( int argc, char** argv )
 		}
 	if( ran )
 		;
+	else if( mode == "pipe" )
+		//The fleet's two shapes: an effect is frames in, frames out; a source
+		//makes --frames of them, or runs until the reader hangs up.
+		result = runPipe( effect, width, height, fps, scriptPath, framesGiven ? frames : 0, effect, beat, settings );
+	else if( mode == "film" )
+		//The Over on its card, N frames.
+		result = runPipe( true, width, height, fps, scriptPath, filmFrames, false, beat, settings );
 	else if( mode == "negative" )
 		result = runNegative( false );
 	else if( mode == "bench" )

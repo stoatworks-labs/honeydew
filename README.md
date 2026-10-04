@@ -142,8 +142,8 @@ The source is opaque (the lightbox is the picture); the Over keeps the clip's al
 
 ## Status
 
-**v0.1.0, 4 October 2026, unreleased, and honestly early.** No project page, no user
-guide, no browser demo, no OpenFX port.
+**v0.1.0, 4 October 2026, and honestly early.** There is a
+[user guide](docs/USER-GUIDE.md); no project page yet, no browser demo, no OpenFX port.
 
 It has **never been loaded into Resolume**, on any platform. `oxbow probe` reads the
 bundles as a host does (`SW Honeydew` / `HD01` / source, `SW Honeydew Over` / `HD02` /
@@ -260,6 +260,15 @@ The offline harness renders the real plugin classes headlessly:
     python3 tools/sweep.py        no control is silently dead
     ./build/hdtest --bench        720p through 4K, both plugins
     tools/verify.sh               all of it, the software renderer too
+
+Filming uses the fleet's frame format and cue sheets (`frame Name value` lines; options by
+name; a wrong name or value is refused):
+
+    ./build/hdtest --pipe --frames 1800 --size 1280x720 --script cues.txt \
+      | ffmpeg -f rawvideo -pix_fmt rgba -s 1280x720 -r 60 -i - dish.mp4
+    ffmpeg -i clip.mov -vf fps=60 -f rawvideo -pix_fmt rgba -s 1280x720 - \
+      | ./build/hdtest --over --pipe --size 1280x720 \
+      | ffmpeg -f rawvideo -pix_fmt rgba -s 1280x720 -r 60 -i - over.mp4
 
 <!-- attributions:start -->
 This project is built on other people's work — see [ATTRIBUTIONS.md](ATTRIBUTIONS.md).
