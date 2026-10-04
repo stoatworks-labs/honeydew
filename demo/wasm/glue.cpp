@@ -257,6 +257,7 @@ EMSCRIPTEN_KEEPALIVE double hd_convert( int id, float v )
 	case PT_DROP_SIZE: return DropSizeFromParam( v );
 	case PT_AUTO_DROP: return AutoDropFromParam( v );
 	case PT_EXPOSURE: return ExposureStopsFromParam( v );
+	case PT_EXCITABILITY: return ExcitabilityFromParam( v );
 	default: return kNaN;
 	}
 }
@@ -276,6 +277,7 @@ EMSCRIPTEN_KEEPALIVE double hd_param_from( int id, double value )
 	case PT_DEPTH: return ParamFromDepth( value );
 	case PT_TIMELAPSE: return ParamFromTimelapse( value );
 	case PT_DROP_SIZE: return ParamFromDropSize( value );
+	case PT_EXCITABILITY: return ParamFromExcitability( value );
 	default: return kNaN;
 	}
 }
