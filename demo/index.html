@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Honeydew — browser demo | Stoatworks Labs</title>
+    <meta name="description" content="Try the Honeydew FFGL source and effect for Resolume in your browser: a thin layer of real reagents in a dish on a lightbox — the Belousov–Zhabotinsky reaction's waves and spirals, the Briggs–Rauscher and iodine-clock colour changes, CDIMA Turing patterns, the blue-bottle family and the chemical chameleon, each from its published mechanism, coloured by Beer–Lambert through each species' spectrum. The plugin's own C++ compiled unmodified to WebAssembly, running its own GLSL in WebGL2. A demo, not the plugin." />
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./vendor/kit.css" />
+    <link rel="canonical" href="https://honeydew-demo.stoatworks-labs.com/" />
+  </head>
+  <body>
+    <main id="demo">
+      <noscript>
+        <p>
+          This demo runs the plugin's own C++, compiled to WebAssembly, and its
+          shaders in your browser, so it needs JavaScript and WebGL2. The plugin
+          itself, its source and its downloads are on
+          <a href="https://github.com/stoatworks-labs/honeydew">its repository</a>.
+        </p>
+      </noscript>
+    </main>
+
+    <script type="module" src="./plugin.js"></script>
+    <script
+      src="./vendor/support-footer.js"
+      defer
+      data-app="Honeydew"
+      data-repo="https://github.com/stoatworks-labs/honeydew"
+      data-note="A browser demo of the plugin's own C++ and shaders, compiled to WebAssembly and WebGL2. Nothing you load here leaves your machine."
+    ></script>
+  </body>
+</html>

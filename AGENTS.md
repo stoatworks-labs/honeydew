@@ -471,6 +471,92 @@ control whose context the table names (a drop needs a position, a sync
 needs a clock, a coupling needs a photosensitive catalyst and a wave on the
 clip), which is what the table is for.
 
+## The browser demo (2026-10-04)
+
+`demo/` is <https://honeydew-demo.stoatworks-labs.com>, built to the fleet's
+`resolume-demo` kit rules by a sub-agent of the release session. Like
+polyhedral's, and unlike the ported demos, it **runs the plugin rather than a
+port of it**:
+
+- **`honeydew-core.wasm` is the plugin's C++, unmodified**: Honeydew.cpp (the
+  plugin class: constructor, clock and its unit vote, transport, audio
+  analyser, buttons, grid and re-grid, seed, substep plan, every pass and every
+  uniform, Clock Sync, the drops) and everything it calls -- Chemistry, Spectra,
+  Controls, BrEngine, Audio, PassBuffer, Shaders, Diag -- plus the FFGL SDK's
+  CFFGLPluginManager/CFFGLPlugin, FFGLLog, FFGLShader, FFGLScreenQuad and scoped
+  bindings. Left out: SourcePlugin.cpp and EffectPlugin.cpp. GL is emscripten's
+  WebGL2 library on the page's context, and the GLSL is the shipped text,
+  compiled by WebGL2 after the kit's `port()` (the version line and the ES
+  precision defaults), so **both engines run as shipped**: the GPU reactions in
+  the plugin's shaders, Briggs-Rauscher in the plugin's CPU engine in double --
+  single-threaded, because a non-pthread emscripten build reports one core and
+  BrEngine's own `workers == 1` path runs the cells on the page's thread (8 ms a
+  frame on this Mac). `-D__linux__` on the SDK-including files only.
+- **The page's parts**: `demo/wasm/glue.cpp` is the host (constructs the plugin,
+  reads its declarations through the SDK's host getters -- the panel is built
+  from them -- forwards SetFloatParameter, SetTime, SetBeatInfo, ProcessOpenGL,
+  and exposes the harness's accessors for the status line, Controls.cpp's
+  conversions for the read-outs and its inverses for the presets).
+  `demo/wasm/gl_shim.cpp` replaces glShaderSource (the page REQUIRES the text
+  to be one of the programs its checked copy assembles, by the ASSEMBLY table
+  that mirrors InitGL, then applies `port()`), glEnable/glDisable/glIsEnabled
+  (GL_PROGRAM_POINT_SIZE is not in WebGL2) and glTexImage2D/glGetTexImage
+  (WebGL2 has no glGetTexImage: the sizes are recorded at allocation and
+  readMean's two 1x1 totals and brightestCell's 32x18 thumb are read through a
+  READ framebuffer, leaving the plugin's draw binding alone). `demo/plugin.js`
+  is the panel, the units, the presets and the status line.
+- **Checked by `demo/tools/check_shaders.py`**: shaders.js (13 pieces, kVersion
+  and the ASSEMBLY table) character for character against Shaders.cpp, every
+  `R"(` literal listed and every piece assembled into some program, and the
+  .wasm's inputs (`demo/wasm/inputs.sha256`: every source/*.cpp and *.h, the
+  SDK files and its pin, glue, shim, the build script, both outputs) unchanged
+  since `demo/tools/build-wasm.sh` ran. Negative-controlled once: `- s.x *
+  s.y` -> `+ s.x * s.y` in the copy fails it; a line appended to glue.cpp fails
+  it. `deploy.yml` runs it before every deploy, so a push that changes source/
+  without rebuilding goes red instead of shipping a page that claims to run code
+  it does not. **tools/verify.sh does not run it yet** (tools/ was outside the
+  demo's remit): polyhedral's "Demo" step is the one to add. **After any change
+  under source/, run `demo/tools/build-wasm.sh`** (emscripten) and commit the
+  outputs.
+- **Compared with the plugin, once, on this Mac** (Chrome, ANGLE on Metal,
+  against hdtest on the GPU and the references in double): the Oregonator's
+  mean-z period in an eddy-stirred dish (Stir 0.5) over 11 cycles 100.61 s
+  (`--oregonator`: 101.19 s at Stir 1 from a perturbed homogeneous state,
+  100.97 in double; the page's frame at 100x is 0.8 s); the iodine clock's snap
+  (Batch, 1x) at 25.08 s (the closed form 25.01, the plugin 25.25); the
+  Briggs-Rauscher iodine peaks (Stir 1, Batch) at 116.7, 272.5, 402.5, 538.3,
+  674.3, 831.0, 1010.2, 1223.4, 1495.1, 1871.0 s against the double reference's
+  115.4, 271.8, 402.0, 533.0, 673.0, 828.8, 1007.9, 1222.4, 1493.1, 1867.3 (the
+  README's 248.00 s is the mean of those growing gaps; the shipped plugin
+  through `--pipe` snaps at 136, 275, 403, 534, 674, 830, 1009, 1223, 1494,
+  1868, 2505 at 0.5, 1 and 2.5 chemical seconds a frame); and the Over returns
+  the clip bit for bit at Mix 0 and through an empty dish (0 of 1,555,200
+  channels differ). Nothing repeats those; what runs is the check above and
+  the page's own refusal of unknown shader text.
+- **A plugin fact found on the way, not fixed here**: a fresh BZ dish at Stir 1
+  never starts. The whole-vessel relaxation holds the uniform dish at the
+  Oregonator's unstable rest state (hdtest from a fresh seed at Stir 1 is a
+  constant [255, 100, 76] for 1500 chemical s; `--oregonator` starts from
+  `bzHomogeneous`'s perturbed state, so verify never meets it). A Drop starts it
+  (the page: z to 0.235 after the drop), and Stir 0.5 or 0.7 oscillates.
+- **Differences, all said on the page**: no transport (a Host BPM field under
+  the picture feeds SetBeatInfo with no bar phase; the plugin runs its own
+  phase); no audio (Audio, Audio Drops, Audio Shakes absent, as conway's demo
+  has it); Reset, Drop, Break Wave and Shake are held through one frame and
+  released on the next (the plugin reads the rising edge in ProcessOpenGL, so a
+  press released before the frame is lost); Seed is a number field; Restart
+  also presses Reset; the Plugin switch is a new instance at that constructor's
+  defaults; Drop Position is two rows (the Over's list has Brightest); no About
+  block; the presets are the page's, converted by Controls.cpp's ParamFrom*.
+- **Traps**: `hdtest --set` takes the HOST's 0..1, so `Time-lapse=60` is 300x
+  (use ParamFromTimelapse); the harness reads BR's period from `BR().MeanOf`,
+  never MeanState (not written on the BR path); at Stir 0 the BR cells drift
+  apart (the seed varies each cell's iodide 0.5-1.5x) and the dish MEAN's
+  oscillation dies within three peaks while every cell oscillates -- measure it
+  stirred, as `--briggs` does; a Stir-1 BZ dish is the rest state above;
+  headless SwiftShader crawls, so cdpshot runs Chrome through a wrapper adding
+  `--use-gl=angle --use-angle=metal`.
+
 ## Shape of the code
 
 - `source/Controls.*` — the parameter ids, names, host order (About last; the
