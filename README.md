@@ -212,15 +212,16 @@ and `oxbow selftest` renders 120 frames through each. Built and measured on macO
 On Windows both plugins have been loaded: the DLLs release.yml built from the tagged tree
 load, register and render in Resolume Arena 7.27.1 on software rendering (win-lab, Mesa
 llvmpipe, no GPU, no sound device), with every control matching what the plugins declare
-(32 and 35 host controls, Arena's own Opacity included), Arena's log clean and Arena alive
-at the end, in the fleet's Arena gate: 15 of 15 checks, the audio rows skipped. On the
-source 12 controls were confirmed live one at a time (Reaction, Catalyst, Oxidant,
-Reductant, Indicator, Vessel, Depth, Time-lapse, Drop Size, Clock Sync, Lightbox,
-Exposure) and 8 read inconclusive, none dead: the dish's waves move every frame, so no two
-grabs of the picture are alike and the gate's noise floor is high. On the Over 21 were
-confirmed live, Drop Position inconclusive and Seed From Clip inert (it acts only on a
-Reset, which the gate never presses). The harness's own sweep (all 54 parameters move the
-picture) carries the rest. Software rendering says nothing about a GPU or about speed.
+(33 and 36 host controls in 0.1.1, Arena's own Opacity included), Arena's log clean and
+Arena alive at the end, in the fleet's Arena gate: 15 of 15 checks, the audio rows skipped,
+for 0.1.0 and again for 0.1.1. In the 0.1.1 run 10 of the source's controls were confirmed
+live one at a time (Reaction, Catalyst, Reductant, Indicator, Vessel, Depth, Drop Size,
+Clock Sync, Lightbox, Exposure) and 11 read inconclusive, Excitability among them, none
+dead: the dish's waves move every frame, so no two grabs of the picture are alike, and the
+fresh dish now starting coherently raised the gate's noise floor. On the Over 15 were
+confirmed live, 8 inconclusive and Seed From Clip inert (it acts only on a Reset, which the
+gate never presses). The harness's own sweep (all 56 parameters move the picture) carries
+the rest. Software rendering says nothing about a GPU or about speed.
 
 **Not built: the chemoconvection cells.** The spec's third change asked for a
 depth-resolved Boussinesq solver (a Convection control, `--rayleigh`,

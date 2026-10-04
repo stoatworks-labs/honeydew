@@ -30,14 +30,14 @@ Flow, pacemakers firing target waves that annihilate where they meet.*
 > average 248.00 s apart against 248.04 from the De Kepper–Epstein mechanism; the Turing pattern's wavelength, read off the
 > state, is 0.122 mm against the Lengyel–Epstein model's 0.1205; every pixel of a uniform dish
 > is within 2×10⁻⁷ of a double-precision Beer–Lambert integral through the CIE 1931 observer.
-> Twenty deliberately wrong models are each shown to fail their check, one-character mutations
-> of the shipped shaders are caught, and all 54 parameters over both plugins are shown to change
-> the picture. Eleven of the twenty absorption spectra and some rate constants are stand-ins,
+> Twenty-three deliberately wrong models are each shown to fail their check, one-character
+> mutations of the shipped shaders are caught, and all 56 parameters over both plugins are shown
+> to change the picture. Eleven of the twenty absorption spectra and some rate constants are stand-ins,
 > each named in the chemistry notes. **The chemoconvection cells of a still blue-bottle layer
 > are not built**, and Briggs–Rauscher is stirred only.
 > It has **never been loaded into Resolume on macOS** — the one host it has run in there is the
 > fleet's own test host, `oxbow`, for 120 frames each.
-> On Windows both plugins have been loaded: a build of this source loads, registers and renders in Resolume Arena 7.27.1 on software rendering (win-lab, Mesa llvmpipe, no GPU, no sound device), with every control matching what the plugins declare (32 and 35 host controls), Arena's log clean, in the fleet's Arena gate: 15 of 15 checks, the audio rows skipped. Because the dish's waves move every frame, no two grabs of the picture are alike, so the gate could confirm only some controls one at a time: 12 of the source's and 21 of the effect's, the rest inconclusive (none dead). The harness's own sweep (all 54 parameters move the picture) carries the rest. Software rendering says nothing about a GPU or about speed.
+> On Windows both plugins have been loaded: a build of this source loads, registers and renders in Resolume Arena 7.27.1 on software rendering (win-lab, Mesa llvmpipe, no GPU, no sound device), with every control matching what the plugins declare (33 and 36 host controls in 0.1.1), Arena's log clean, in the fleet's Arena gate: 15 of 15 checks, the audio rows skipped, for 0.1.0 and again for 0.1.1. Because the dish's waves move every frame, no two grabs of the picture are alike, so the gate could confirm only some controls one at a time: in 0.1.1, 10 of the source's and 15 of the effect's, the rest inconclusive (none dead). The harness's own sweep (all 56 parameters move the picture) carries the rest. Software rendering says nothing about a GPU or about speed.
 > Try it on a spare layer before you put it in a show.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.

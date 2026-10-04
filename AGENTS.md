@@ -703,6 +703,14 @@ Assumed, or not done:
   Reactor, Seed, Dish Width, Stir, Detail, Auto Drop, Drop Position), none dead --
   the waves move every frame, so the single-grab noise floor is 9.6 levels. Live on
   the Over: 21; Drop Position inconclusive.
+- **Windows again for 0.1.1** (2026-10-05): the DLLs release.yml built from
+  d178977 (the commit v0.1.1 tags), the expectation re-seeded with the 0.1.0
+  annotations carried over and Excitability the one new row on each plugin
+  (plugin-bench 0b23861): 15 of 15, 33 + 36 host controls, Arena clean and
+  alive. Source: 10 live, 11 inconclusive (Excitability, Oxidant and Time-lapse
+  among them), none dead; the single-grab noise floor rose from 9.6 to 48 levels,
+  because the fresh dish now starts coherently and the whole field changes. Over:
+  15 live, 8 inconclusive, none dead.
 - **The chemistry is the cited models at the cited constants**, and eleven of
   the twenty spectral peaks and a number of rate and diffusion constants are
   STAND-INS, each marked in CHEMISTRY.md. The plugin is verified against
