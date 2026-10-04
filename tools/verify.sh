@@ -169,7 +169,8 @@ for check in beer over-check clock stir state resize prime; do
 		fail "hdtest --$check on the software renderer -- run: HDTEST_RENDERER=software $HDTEST --$check --size 320x180"
 	fi
 done
-echo "   (oregonator, fieldnoyes, spiral, photo, sync, briggs, traffic, bluebottle, chameleon, turing, units and timebase run on the GPU only: minutes each in software)"
+echo "   (oregonator, fieldnoyes, spiral, photo, sync, briggs, traffic, bluebottle, chameleon, turing, units and timebase run on the GPU only: minutes each in software;"
+echo "    over-check's cross-context comparison prints a skip there: that renderer gives two contexts different floats, AGENTS.md)"
 
 #---------------------------------------------------------------------------
 step "Offline (what CI runs)"
