@@ -463,7 +463,12 @@ void main()
 			else if( Reaction == R_TRAFFIC || Reaction == R_BOTTLE || Reaction == R_VALENTINE )
 				a.x = max( a.x, DropAmount );//air-saturated water
 			else if( Reaction == R_CHAMELEON )
-				a.x += DropAmount;//permanganate
+			{
+				//A drop of permanganate in water: it brings no glucose, so its
+				//edge, where the dish's glucose diffuses in, reacts first.
+				a.x += DropAmount;
+				a.w = 0.0;
+			}
 		}
 	}
 	if( BarOn == 1 && Reaction == R_BZ && segmentDistance( p, Bar.xy, Bar.zw ) <= BarHalfWidth )
