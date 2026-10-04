@@ -224,7 +224,7 @@ const UNITS = {
   // The regime is the plugin's own verdict at the sliders' recipe (Chemistry.cpp:
   // two catalyst peaks in 200 s of the ODE), not a fixed number: at the 1×
   // recipe it stops oscillating at f 1.78, at twice the acid at 2.16.
-  Excitability: (x) => `f ${fixed(x, 2)}${liveInstance ? (core._hd_bz_oscillates(liveInstance, x) ? ' (oscillating)' : ' (excitable)') : ''}`,
+  Excitability: (x) => `f ${fixed(x, 2)}${(liveInstance ? core._hd_bz_oscillates(liveInstance, x) : core._hd_bz_oscillates_1x(x)) ? ' (oscillating)' : ' (excitable)'}`,
 };
 
 function readout(d) {

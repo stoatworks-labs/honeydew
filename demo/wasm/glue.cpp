@@ -372,6 +372,11 @@ EMSCRIPTEN_KEEPALIVE double hd_bz_hopf( Instance* instance )
 {
 	return chem::BZHopfF( instance->plugin.CurrentRecipe() );
 }
+/// The same at the 1x recipe, for a read-out drawn before the instance exists.
+EMSCRIPTEN_KEEPALIVE int hd_bz_oscillates_1x( float f )
+{
+	return chem::BZOscillates( chem::BaseRecipe( Reaction::BZ ), f ) ? 1 : 0;
+}
 
 /// The recipe at the sliders, in mol/L: 0 oxidant, 1 acid or base, 2
 /// reductant, 3 indicator (Chemistry.h's Recipe, by CurrentRecipe()).
