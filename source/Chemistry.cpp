@@ -75,13 +75,13 @@ Recipe BaseRecipe( Reaction r )
 		//Pons 2000's glucose and (for the blue bottle) dye, with four times
 		//their [OH-] so that the 1/4x slider reaches their 0.020 M and 4x the
 		//classical demonstration's ~0.3 M. Oxidant 1x = air saturation. The
-		//traffic light's indigo carmine (1e-3 M, ~0.47 g/L) and the valentine's
-		//resazurin (1e-4 M) are demonstration strengths, chosen to absorb
-		//about half an absorbance unit in a 1.5 mm layer.
+		//traffic light's indigo carmine (2e-4 M, ~0.1 g/L) and the valentine's
+		//resazurin (3e-5 M) are demonstration strengths, chosen to absorb
+		//about one absorbance unit in a 7 mm layer (the depth the family wants).
 		x.oxidant   = kDye.O2sat;
 		x.acidBase  = 0.08;
 		x.reductant = 0.054;
-		x.indicator = r == Reaction::BlueBottle ? 4.6e-5 : r == Reaction::TrafficLight ? 1.0e-3 : 1.0e-4;
+		x.indicator = r == Reaction::BlueBottle ? 4.6e-5 : r == Reaction::TrafficLight ? 2.0e-4 : 3.0e-5;
 		break;
 	case Reaction::Chameleon:
 		//A demonstration recipe: 0.25 M NaOH, 0.05 M glucose, 1.3 mM KMnO4
@@ -293,20 +293,33 @@ double ClockRateConstant( double H )
 	return kClock.k1 + kClock.k2 * H;
 }
 
-double ClockSwitchTime( double H0, double I0, double H, double S0 )
+double ClockSwitchTime( double H0, double I0, double H, double S0, double k0 )
 {
 	if( S0 <= 0.0 )
 		return 0.0;
-	if( H0 <= 0.0 || I0 <= 0.0 || S0 >= 2.0 * H0 )
+	if( H0 <= 0.0 || I0 <= 0.0 )
+		return -1.0;
+	const double rate = ClockRateConstant( H ) * H0 * I0;
+	if( k0 > 0.0 )
+		return std::log( 1.0 + S0 * k0 / ( 2.0 * rate ) ) / k0;
+	if( S0 >= 2.0 * H0 )
 		return -1.0;
 	return -std::log( 1.0 - S0 / ( 2.0 * H0 ) ) / ( ClockRateConstant( H ) * I0 );
 }
 
-double ClockDoseForSwitch( double tSwitch, double H0, double I0, double H )
+double ClockDoseForSwitch( double tSwitch, double H0, double I0, double H, double k0 )
 {
 	if( tSwitch <= 0.0 || H0 <= 0.0 || I0 <= 0.0 )
 		return 0.0;
+	if( k0 > 0.0 )
+		return 2.0 * ClockRateConstant( H ) * H0 * I0 / k0 * ( std::exp( k0 * tSwitch ) - 1.0 );
 	return 2.0 * H0 * ( 1.0 - std::exp( -ClockRateConstant( H ) * I0 * tSwitch ) );
+}
+
+double StarchBound( double I3free, double sites, double KStarch )
+{
+	I3free = std::max( I3free, 0.0 );
+	return sites * KStarch * I3free / ( 1.0 + KStarch * I3free );
 }
 
 void IodineSpeciation( double T, double F, double K, double& I2, double& I3, double& iodideFree )
@@ -337,14 +350,62 @@ double DyeBlueDuration( double O2, double OH, double GL, double dyeTotal )
 	return rate > 0.0 ? O2 / rate : -1.0;
 }
 
-double DyeOxygenForDuration( double tFade, double OH, double GL, double dyeTotal )
+double DyeOxygenForFade( double tFade, double kRed, double dyeTotal, double ox0, double kLa, double O2sat )
 {
-	return std::max( 0.0, tFade ) * 0.5 * kDye.k2 * OH * GL * dyeTotal;
+	const double drain = kRed * dyeTotal - 2.0 * kLa * O2sat;
+	if( drain <= 0.0 )
+		return O2sat;//the surface feeds it faster than it fades: it never fades
+	return std::max( 0.0, 0.5 * ( std::max( tFade, 0.0 ) * drain - ox0 + 0.5 * dyeTotal ) );
 }
 
-double ChameleonGreenPeakTime( double OH, double GL )
+double DyeOxygenForFadeModel( Reaction r, const Params& p, const double* a0, const double* b0, double tFade, double* achieved )
 {
-	const double alpha = kChameleon.kA * OH * GL, beta = kChameleon.kB * OH * GL;
+	const double sat = p[ P_DY_O2SAT ], ctot = p[ P_DY_CTOT ];
+	if( achieved )
+		*achieved = -1.0;
+	if( tFade <= 0.0 || sat <= 0.0 || ctot <= 0.0 )
+		return 0.0;
+	auto fadeTime = [ & ]( double dose ) {
+		double y[ 8 ] = { std::max( a0[ 0 ], dose ), a0[ 1 ], a0[ 2 ], a0[ 3 ], b0[ 0 ], b0[ 1 ], b0[ 2 ], b0[ 3 ] };
+		double t      = -1.0;
+		bool high     = false;
+		IntegrateStiff( 8, [ & ]( const double* s, double* d ) { WellMixedRhs( r, p, 0.0, 1.0, s, s + 4, d, d + 4 ); }, y, 2.0 * tFade + 60.0, 1e-5, 1e-14,
+		                [ & ]( double tt, const double* s ) {
+			                if( t >= 0.0 )
+				                return;
+			                if( s[ 2 ] > 0.6 * ctot )
+				                high = true;
+			                else if( high && s[ 2 ] < 0.5 * ctot )
+				                t = tt;
+		                }, std::min( 0.25 * tFade, 2.0 ) );
+		return t;
+	};
+	double lo = 0.0, hi = sat;
+	const double atHi = fadeTime( hi );
+	if( atHi >= 0.0 && atHi < tFade )
+	{
+		if( achieved )
+			*achieved = atHi;
+		return sat;
+	}
+	for( int i = 0; i < 18; ++i )
+	{
+		const double mid = 0.5 * ( lo + hi );
+		const double t   = fadeTime( mid );
+		if( t < 0.0 || t > tFade )
+			hi = mid;//too much air (or never fades back from here): less
+		else
+			lo = mid;
+	}
+	const double dose = 0.5 * ( lo + hi );
+	if( achieved )
+		*achieved = fadeTime( dose );
+	return dose;
+}
+
+double ChameleonGreenPeakTime( double OH, double GL, double k0 )
+{
+	const double alpha = kChameleon.kA * OH * GL + k0, beta = kChameleon.kB * OH * GL + k0;
 	if( alpha <= 0.0 || beta <= 0.0 )
 		return -1.0;
 	if( std::fabs( alpha - beta ) < 1e-12 * alpha )
@@ -638,7 +699,7 @@ void WellMixedRhs( Reaction r, const Params& p, double light, double aeration, c
 		const double P = std::max( a[ 0 ], 0.0 ), M = std::max( a[ 1 ], 0.0 ), GL = std::max( a[ 3 ], 0.0 );
 		const double alpha = p[ P_CH_KA ] * p[ P_CH_OH ] * GL, beta = p[ P_CH_KB ] * p[ P_CH_OH ] * GL;
 		const double v1 = alpha * P, v2 = beta * M;
-		da[ 0 ] = -v1;
+		da[ 0 ] = -v1 - k0 * a[ 0 ];
 		da[ 1 ] = v1 - v2 - k0 * a[ 1 ];
 		da[ 2 ] = v2 - k0 * a[ 2 ];
 		//Mn(VII) -> Mn(VI) is one electron, Mn(VI) -> Mn(IV) two; glucose gives two.

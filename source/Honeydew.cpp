@@ -38,6 +38,10 @@ constexpr int kClockVotes = 4;
 constexpr double kShakeTau = 0.7;
 /// Clock Sync aims no closer than this to a boundary (real seconds).
 constexpr double kSyncLead = 0.25;
+/// Clock Sync holds the changed state for this share of a beat or bar before
+/// the dose that runs the cycle again: a snap that cleared on the next frame
+/// would be a 16 ms flash.
+constexpr double kSyncHold = 0.25;
 /// The Over's thumb for Drop Position Brightest.
 constexpr int kThumbW = 32, kThumbH = 18;
 /// The stir bar's core, as a fraction of the dish's radius.
@@ -397,6 +401,7 @@ void HoneydewPlugin::seed()
 	seededThisFrame = true;
 	syncArmed       = true;
 	chameleonDoseAt = -1.0;
+	syncDoseAt      = -1.0;
 	meanValid       = false;
 }
 
@@ -636,6 +641,7 @@ void HoneydewPlugin::colour( const FFGLTextureStruct* )
 	//Starch: the Indicator slot of the iodine reactions; CDIMA's sites too.
 	const bool starchy = r == Reaction::BriggsRauscher || r == Reaction::IodineClock || r == Reaction::CDIMA;
 	colourShader.Set( "StarchSites", static_cast< float >( starchy ? recipe.indicator : 0.0 ) );
+	colourShader.Set( "KStarch", static_cast< float >( chem::kClock.KStarch ) );
 	colourShader.Set( "KDimer", static_cast< float >( r == Reaction::BlueBottle ? 2000.0 : 0.0 ) );
 	colourShader.Set( "ClO2Pool", static_cast< float >( r == Reaction::CDIMA ? recipe.oxidant : 0.0 ) );
 	colourShader.Set( "LEu0", static_cast< float >( r == Reaction::CDIMA ? p[ chem::P_LE_A ] / 5.0 : 1.0 ) );
@@ -989,7 +995,11 @@ FFResult HoneydewPlugin::ProcessOpenGL( ProcessOpenGLStruct* pgl )
 	double maxSubstep = reactionLimit;
 	if( maxD > 0.0 && cellMm > 0.0 )
 		maxSubstep = std::min( maxSubstep, 0.2 * cellMm * cellMm / maxD );
-	maxSubstep *= substepScale;
+	//The harness halves the substep to measure the step's own error: the
+	//frame must then take at least twice as many substeps, even where the
+	//stability bound asked for one.
+	if( substepScale < 1.0 )
+		maxSubstep = std::min( maxSubstep * substepScale, chemWanted * substepScale );
 	double covered = 0.0, dt = 0.0;
 	const int cap  = uncapped ? 1 << 20 : kMaxSubsteps;
 	int substeps   = ChemicalClock::Plan( chemWanted, maxSubstep, cap, covered, dt );
@@ -1074,7 +1084,7 @@ FFResult HoneydewPlugin::ProcessOpenGL( ProcessOpenGLStruct* pgl )
 	switch( reaction )
 	{
 	case Reaction::CDIMA: dropAmount = 0.5 * params_[ chem::P_LE_A ] / 5.0; break;
-	case Reaction::IodineClock: dropAmount = params_[ chem::P_CK_S_0 ]; break;
+	case Reaction::IodineClock: dropAmount = chem::BaseRecipe( Reaction::IodineClock ).reductant; break;//the demonstrator's thiosulfate, whatever the dish started with
 	case Reaction::TrafficLight:
 	case Reaction::BlueBottle:
 	case Reaction::Valentine: dropAmount = params_[ chem::P_DY_O2SAT ]; break;
@@ -1097,67 +1107,98 @@ FFResult HoneydewPlugin::ProcessOpenGL( ProcessOpenGLStruct* pgl )
 			doseAmount = params_[ chem::P_DY_O2SAT ];
 		}
 	}
-	//Clock Sync: size (or time) the next dose so the change lands on the beat or bar.
+	if( testDoseOn )
+	{
+		dose       = true;
+		doseAmount = testDose;
+		testDoseOn = false;
+	}
+	//Clock Sync: size (or time) the next dose so the change lands on the beat
+	//or bar. The clock and the dye family wait a quarter of the period in
+	//their changed state first (kSyncHold); the chameleon's dose is timed.
 	if( sync != static_cast< int >( ClockSync::Off ) && meanValid && hostDt > 0.0 )
 	{
 		const bool bar      = sync == static_cast< int >( ClockSync::Bar );
-		const double toNext = transport.SecondsToNext( bar, kSyncLead );
+		const double period = bar ? transport.BarSeconds() : transport.BeatSeconds();
 		if( reaction == Reaction::IodineClock )
 		{
-			//Switched (no thiosulfate, iodine present) and not yet re-dosed.
-			if( meanA[ 3 ] <= 1e-7 && meanA[ 2 ] > 1e-6 && syncArmed )
+			const bool switched = meanA[ 3 ] <= 1e-7 && meanA[ 2 ] > 1e-6;
+			if( switched && syncArmed && syncDoseAt < 0.0 )
+				syncDoseAt = now + kSyncHold * period;
+			if( syncDoseAt >= 0.0 && now >= syncDoseAt )
 			{
-				//The dose lands at the START of this frame's chemistry, one host
-				//frame before `now`: the switch has that frame more to run.
-				const double tChem = ( toNext + hostDt ) * lapse;
-				const double H     = wrongDose ? 0.0 : recipe.acidBase;
-				double S0          = chem::ClockDoseForSwitch( tChem, meanA[ 0 ], meanA[ 1 ], H );
-				const double capS  = 1.98 * meanA[ 0 ];
+				//The dose lands at the START of this frame's chemistry, one
+				//host frame before `now`: the switch has that frame more to run.
+				const double toNext = transport.SecondsToNext( bar, kSyncLead );
+				const double tChem  = ( toNext + hostDt ) * lapse;
+				const double H      = wrongDose ? 0.0 : recipe.acidBase;
+				double S0           = chem::ClockDoseForSwitch( tChem, meanA[ 0 ], meanA[ 1 ], H, params_[ chem::P_FLOW_K0 ] );
+				const double capS   = 1.98 * meanA[ 0 ];
 				if( S0 > capS )
 				{
 					diag::warn( "Clock Sync: the next boundary is too far for the peroxide left; the dose was capped" );
 					S0 = capS;
 				}
-				dose           = true;
-				doseAmount     = S0;
-				lastDoseAmount = S0;
-				lastDoseAim    = toNext;
+				//Plus the iodine the held dish has made, which the dose takes first.
+				S0 += 2.0 * std::max( meanA[ 2 ], 0.0 );
+				dose             = true;
+				doseAmount       = S0;
+				lastDoseAmount   = S0;
+				lastDoseAim      = toNext;
 				lastDoseHostTime = now;
 				++dosesMade;
-				syncArmed = false;
+				syncArmed  = false;
+				syncDoseAt = -1.0;
 			}
-			else if( meanA[ 3 ] > 1e-7 )
+			if( meanA[ 3 ] > 1e-7 )
 				syncArmed = true;
 		}
 		else if( dyeFam )
 		{
-			//Faded (no oxygen, the dye mostly reduced) and not yet re-shaken.
-			const double ctot = params_[ chem::P_DY_CTOT ];
+			const double ctot       = params_[ chem::P_DY_CTOT ];
 			const double oxFraction = ctot > 0.0 ? ( meanA[ 2 ] + ( reaction == Reaction::Valentine ? meanB[ 2 ] : 0.0 ) ) / ctot : 0.0;
-			if( meanA[ 0 ] < 0.02 * params_[ chem::P_DY_O2SAT ] && oxFraction < 0.5 && syncArmed )
+			const bool faded        = meanA[ 0 ] < 0.02 * params_[ chem::P_DY_O2SAT ] && oxFraction < 0.5;
+			if( faded && syncArmed && syncDoseAt < 0.0 )
+				syncDoseAt = now + kSyncHold * period;
+			if( syncDoseAt >= 0.0 && now >= syncDoseAt )
 			{
-				const double kRed = params_[ chem::P_DY_K2 ] * params_[ chem::P_DY_OH ] * std::max( meanA[ 1 ], 0.0 );
-				//The fade (the oxidised half gone) follows the oxygen's end by ln 2 / kRed.
-				const double tChem = ( toNext + hostDt ) * lapse - ( kRed > 0.0 ? std::log( 2.0 ) / kRed : 0.0 );
-				double O2 = chem::DyeOxygenForDuration( tChem, wrongDose ? 0.0 : params_[ chem::P_DY_OH ], std::max( meanA[ 1 ], 0.0 ), ctot );
+				//Sized by the plugin's own well-mixed model (bisection, once a
+				//cycle); the wrong model for the negative control halves the
+				//reduction rate it integrates. A boundary nearer than the
+				//chemistry can fade in is skipped for the next.
+				chem::Params pp = params_;
 				if( wrongDose )
-					O2 = params_[ chem::P_DY_O2SAT ];
-				const double capO2 = params_[ chem::P_DY_O2SAT ];
-				if( O2 > capO2 )
+					pp[ chem::P_DY_K2 ] *= 0.5f;
+				double toNext = transport.SecondsToNext( bar, kSyncLead );
+				double O2     = params_[ chem::P_DY_O2SAT ];
+				bool landed   = false;
+				for( int tries = 0; tries < 3 && !landed; ++tries )
 				{
-					diag::warn( "Clock Sync: the next boundary is too far for the air a shake can hold; the shake was capped" );
-					O2 = capO2;
+					const double tChem = ( toNext + hostDt ) * lapse;
+					double achieved    = -1.0;
+					const double trial = chem::DyeOxygenForFadeModel( reaction, pp, meanA, meanB, tChem, &achieved );
+					if( achieved >= 0.0 && std::fabs( achieved - tChem ) <= std::max( 1.5 * hostDt * lapse, 1.0 ) && trial > 0.0 )
+					{
+						O2     = trial;
+						landed = true;
+					}
+					else
+						toNext += period;
 				}
+				if( !landed )
+					diag::warn( "Clock Sync: no shake lands the fade on a boundary from here; a full shake was given" );
+				//A sized shake is the oxygen alone: no stirring burst, whose
+				//aeration would add to the dose for a while.
 				dose             = true;
 				doseAmount       = O2;
-				shakeAge         = 0.0;
 				lastDoseAmount   = O2;
 				lastDoseAim      = toNext;
 				lastDoseHostTime = now;
 				++dosesMade;
-				syncArmed = false;
+				syncArmed  = false;
+				syncDoseAt = -1.0;
 			}
-			else if( meanA[ 0 ] > 0.1 * params_[ chem::P_DY_O2SAT ] )
+			if( meanA[ 0 ] > 0.1 * params_[ chem::P_DY_O2SAT ] )
 				syncArmed = true;
 		}
 		else if( reaction == Reaction::Chameleon )
@@ -1168,13 +1209,13 @@ FFResult HoneydewPlugin::ProcessOpenGL( ProcessOpenGLStruct* pgl )
 			const bool finished   = meanA[ 0 ] < 0.05 * dosePerm && meanA[ 1 ] < 0.05 * dosePerm;
 			if( finished && syncArmed && chameleonDoseAt < 0.0 )
 			{
-				const double tPeak = chem::ChameleonGreenPeakTime( wrongDose ? 0.5 * recipe.acidBase : recipe.acidBase, std::max( meanA[ 3 ], 0.0 ) );
+				const double tPeak = chem::ChameleonGreenPeakTime( wrongDose ? 0.5 * recipe.acidBase : recipe.acidBase, std::max( meanA[ 3 ], 0.0 ), params_[ chem::P_FLOW_K0 ] );
 				const double tReal = tPeak / lapse;
 				const double wait  = transport.SecondsToNext( bar, tReal + kSyncLead );
 				//The dose lands at the start of the frame that fires, a frame
 				//before its `now`: aim half a frame late to centre it.
-				chameleonDoseAt    = now + wait - tReal + 0.5 * hostDt;
-				lastDoseAim        = wait;
+				chameleonDoseAt = now + wait - tReal + 0.5 * hostDt;
+				lastDoseAim     = wait;
 			}
 			if( chameleonDoseAt >= 0.0 && now >= chameleonDoseAt )
 			{
@@ -1190,6 +1231,8 @@ FFResult HoneydewPlugin::ProcessOpenGL( ProcessOpenGLStruct* pgl )
 				syncArmed = true;
 		}
 	}
+	else
+		syncDoseAt = -1.0;
 
 	//-------------------------------------------------------------------
 	// The chemistry.

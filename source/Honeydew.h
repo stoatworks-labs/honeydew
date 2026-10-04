@@ -117,6 +117,12 @@ public:
 	{
 		testDrops.push_back( { cx, cy, radiusCells } );
 	}
+	/// A uniform dose of the reaction's dosed reagent over the whole dish on the next frame.
+	void DoseForTest( double amount )
+	{
+		testDose   = amount;
+		testDoseOn = true;
+	}
 	/// A Break Wave bar between two cell positions on the next frame.
 	void BarForTest( double x0, double y0, double x1, double y1, double halfWidthCells )
 	{
@@ -374,6 +380,9 @@ private:
 
 	//Harness hooks.
 	bool testChemOn        = false;
+	bool testDoseOn        = false;
+	double testDose        = 0.0;
+	double syncDoseAt      = -1.0;//host seconds: the held dose's time
 	double testChemSeconds = 0.0;
 	bool uncapped          = false;
 	double substepScale    = 1.0;

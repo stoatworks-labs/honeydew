@@ -361,6 +361,7 @@ void stepChameleon( inout vec4 a, inout vec4 b )
 	float consumedM = M + madeM - Mn; //Mn(VI) -> Mn(IV), two electrons each
 	float Dn = D + consumedM;
 	GL -= 0.5 * ( madeM + 2.0 * consumedM );
+	Pn -= k0 * Dt * Pn;
 	Mn -= k0 * Dt * Mn;
 	Dn -= k0 * Dt * Dn;
 	GL += k0 * Dt * ( P( P_CH_GL0 ) - GL );
@@ -464,10 +465,13 @@ void main()
 				a.x = max( a.x, DropAmount );//air-saturated water
 			else if( Reaction == R_CHAMELEON )
 			{
-				//A drop of permanganate in water: it brings no glucose, so its
-				//edge, where the dish's glucose diffuses in, reacts first.
+				//A drop of permanganate solution, part mixed as it lands: its
+				//centre keeps a twentieth of the dish's glucose, its rim all of
+				//it (a MODEL of the pour, AGENTS.md), so the rim reacts first
+				//and the sequence runs inwards as rings.
+				float rr = dot( d, d ) / ( Drops[ i ].z * Drops[ i ].z );
 				a.x += DropAmount;
-				a.w = 0.0;
+				a.w *= 0.05 + 0.95 * rr;
 			}
 		}
 	}
@@ -650,6 +654,7 @@ uniform float DepthCm;
 uniform int Catalyst;           //BZ: 0 ferroin, 1 Ru(bpy)3, 2 cerium
 uniform float KI3;              //triiodide formation constant
 uniform float StarchSites;      //M of sites that bind one I3- each
+uniform float KStarch;          //the sites' binding constant, M^-1
 uniform float KDimer;           //methylene blue dimerisation
 uniform float ClO2Pool;         //M, CDIMA
 uniform float LEu0;             //CDIMA steady-state u
@@ -690,9 +695,10 @@ void iodineColours( float T, float F )
 {
 	float I2, I3;
 	speciation( T, F, I2, I3 );
-	float bound = min( I3, StarchSites );
+	//The starch's sites fill by a Langmuir isotherm on the free triiodide.
+	float bound = StarchSites * KStarch * I3 / ( 1.0 + KStarch * I3 );
 	add( S_I2, I2 );
-	add( S_I3, I3 - bound );
+	add( S_I3, I3 );
 	add( S_STARCH_I3, bound );
 }
 

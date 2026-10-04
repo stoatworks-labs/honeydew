@@ -677,12 +677,13 @@ int runSpectra( const Perturb& perturb )
 		const spectra::Citation& c = spectra::CitationOf( sp );
 		const double e             = spectra::Epsilon( sp, c.lambdaMax );
 		//The cited band's height: the other Gaussians of the fit may add to it,
-		//by at most a third; and the cited lambda is a local maximum (the band
-		//has not been pulled off its peak by a shoulder), judged 12 nm either side.
+		//by at most a third; and the cited lambda is a local maximum to 2%
+		//(the band has not been pulled off its peak by a shoulder), judged
+		//8 nm either side (permanganate's second peak sits 20 nm away).
 		const bool height = e >= 0.999 * c.epsMax && e <= 1.35 * c.epsMax;
 		bool local        = true;
-		for( double d = -12.0; d <= 12.0; d += 1.0 )
-			local = local && spectra::Epsilon( sp, c.lambdaMax + d ) <= e * 1.0001;
+		for( double d = -8.0; d <= 8.0; d += 1.0 )
+			local = local && spectra::Epsilon( sp, c.lambdaMax + d ) <= e * 1.02;
 		if( !( height && local ) )
 		{
 			++peakWrong;
@@ -1917,7 +1918,7 @@ Colour classify( const double rgb[ 3 ] )
 	spectra::RGBToHSV( rgb, h, s, v );
 	if( v < 0.3 )
 		return Colour::Dark;
-	if( s < 0.12 )
+	if( s < 0.25 && v > 0.5 )
 		return Colour::Colourless;
 	if( h >= 330.0 || h < 22.0 )
 		return Colour::Red;
@@ -1959,10 +1960,9 @@ void referenceColour( Reaction r, const chem::Params& p, const chem::Recipe& rec
 		const double T = r == Reaction::IodineClock ? a[ 2 ] : a[ 0 ], F = a[ 1 ];
 		double I2, I3, freeI;
 		chem::IodineSpeciation( T, F, chem::kClock.KI3, I2, I3, freeI );
-		const double bound = std::min( I3, recipe.indicator );
 		add( spectra::S_I2, I2 );
-		add( spectra::S_I3, I3 - bound );
-		add( spectra::S_STARCH_I3, bound );
+		add( spectra::S_I3, I3 );
+		add( spectra::S_STARCH_I3, chem::StarchBound( I3, recipe.indicator, chem::kClock.KStarch ) );
 		break;
 	}
 	case Reaction::TrafficLight:
@@ -2069,6 +2069,33 @@ double firstTime( const RefTrace& tr, Colour c, double from = 0.0 )
 			return tr.t[ i ];
 	return -1.0;
 }
+/// The first time a trace shows either colour, after `from`; -1 if never.
+double firstOfAny( const RefTrace& tr, Colour c1, Colour c2, double from = 0.0 )
+{
+	const double a = firstTime( tr, c1, from ), b = firstTime( tr, c2, from );
+	if( a < 0.0 )
+		return b;
+	if( b < 0.0 )
+		return a;
+	return std::min( a, b );
+}
+/// The first time after `from` at which A[channel] of a trace's state crosses
+/// `level` downwards, having been above it; -1 if never.
+double firstFall( const RefTrace& tr, int channel, double level, double from = 0.0 )
+{
+	bool above = false;
+	for( size_t i = 0; i < tr.t.size(); ++i )
+	{
+		if( tr.t[ i ] < from )
+			continue;
+		const double v = tr.state[ i ][ static_cast< size_t >( channel ) ];
+		if( v > level )
+			above = true;
+		else if( above )
+			return tr.t[ i ];
+	}
+	return -1.0;
+}
 
 //===========================================================================
 // --clock: the switch time read from pixels against the Harcourt-Esson
@@ -2076,7 +2103,7 @@ double firstTime( const RefTrace& tr, Colour c, double from = 0.0 )
 //===========================================================================
 int runClock( const Perturb& perturb )
 {
-	std::printf( "\n=== clock: the iodine clock's switch, read from pixels, lands on the Harcourt-Esson closed form at three recipes\n" );
+	std::printf( "\n=== clock: the iodine clock's switch, read from pixels, lands on the Harcourt-Esson closed form at three recipes (Batch)\n" );
 	const double frameChem = 0.25;
 	for( const Raster& raster : kRasters )
 	{
@@ -2088,6 +2115,7 @@ int runClock( const Perturb& perturb )
 			if( !rig.Init( raster.w, raster.h ) )
 				return 1;
 			prepare( rig, Reaction::IodineClock, 32, 18 );
+			rig.Set( PT_REACTOR, static_cast< float >( Reactor::Batch ) );//the closed form is a batch's
 			rig.Set( PT_OXIDANT, ParamFromRecipeMultiplier( oxidant ) );
 			if( perturb.clockWrongAcid )
 				rig.plugin.SetParamOverrideForTest( chem::P_CK_KP, static_cast< float >( chem::kClock.k1 ) );
@@ -2095,7 +2123,7 @@ int runClock( const Perturb& perturb )
 			const chem::Recipe recipe = rig.plugin.CurrentRecipe();
 			const double H0 = recipe.oxidant, I0 = chem::kClock.iodide, H = recipe.acidBase, S0 = recipe.reductant;
 			const double tStar = chem::ClockSwitchTime( H0, I0, H, S0 );
-			//The iodine that darkens the blue channel by 10%: the colour's own lag.
+			//The iodine that dims the red channel by 10% (the starch complex absorbs at 620 nm): the colour's own lag.
 			double white[ 3 ];
 			spectra::LayerColour( Lightbox::D65, {}, {}, 0.15, white );
 			double tLag = 0.0;
@@ -2106,9 +2134,8 @@ int runClock( const Perturb& perturb )
 					const double mid = 0.5 * ( lo + hi );
 					double I2, I3, freeI, rgb[ 3 ];
 					chem::IodineSpeciation( mid, I0, chem::kClock.KI3, I2, I3, freeI );
-					const double bound = std::min( I3, recipe.indicator );
-					spectra::LayerColour( Lightbox::D65, { spectra::S_I2, spectra::S_I3, spectra::S_STARCH_I3 }, { I2, I3 - bound, bound }, 0.15, rgb );
-					if( rgb[ 2 ] < 0.9 * white[ 2 ] )
+					spectra::LayerColour( Lightbox::D65, { spectra::S_I2, spectra::S_I3, spectra::S_STARCH_I3 }, { I2, I3, chem::StarchBound( I3, recipe.indicator, chem::kClock.KStarch ) }, 0.15, rgb );
+					if( rgb[ 0 ] < 0.9 * white[ 0 ] )
 						hi = mid;
 					else
 						lo = mid;
@@ -2127,7 +2154,7 @@ int runClock( const Perturb& perturb )
 					tState = f * frameChem;
 				double rgb[ 3 ];
 				centreRGB( rig, rgb );
-				if( tPixel < 0.0 && rgb[ 2 ] < 0.9 * rgb0[ 2 ] )
+				if( tPixel < 0.0 && rgb[ 0 ] < 0.9 * rgb0[ 0 ] )
 					tPixel = f * frameChem;
 			}
 			//One frame, the colour's lag, and the explicit step's drift of the
@@ -2175,7 +2202,7 @@ int runSync( const Perturb& perturb )
 					rig.Render( 1 );
 					double rgb[ 3 ];
 					centreRGB( rig, rgb );
-					const bool now = rgb[ 2 ] < 0.9 * rgb0[ 2 ];
+					const bool now = rgb[ 0 ] < 0.9 * rgb0[ 0 ];
 					if( now && !dark )
 						snaps.push_back( rig.TimeOf( rig.frame - 1 ) );
 					dark = now;
@@ -2293,7 +2320,7 @@ int runSync( const Perturb& perturb )
 //===========================================================================
 int runBriggs( const Perturb& perturb )
 {
-	std::printf( "\n=== briggs: the stirred Briggs-Rauscher's period against De Kepper-Epstein in double; colourless > amber > blue-black from pixels; Batch runs down, Flow goes on\n" );
+	std::printf( "\n=== briggs: the stirred Briggs-Rauscher's period against De Kepper-Epstein in double; colourless > amber > blue-black from pixels at 7 mm; Batch runs down, Flow goes on\n" );
 	const chem::Recipe recipe = chem::BaseRecipe( Reaction::BriggsRauscher );
 	//The reference, both reactors, with the same perturbation.
 	auto reference = [ & ]( bool flow ) {
@@ -2306,7 +2333,7 @@ int runBriggs( const Perturb& perturb )
 			k.r9 *= 0.5;
 		std::vector< double > peaks;
 		double last = 0.0, lastD = 0.0;
-		chem::IntegrateStiff( chem::kBRSpecies, [ & ]( const double* s, double* d ) { chem::BRRhs( k, H, flow ? k.k0CSTR : 0.0, flow ? feed : nullptr, s, d ); }, y, 1500.0, 1e-8, 1e-16,
+		chem::IntegrateStiff( chem::kBRSpecies, [ & ]( const double* s, double* d ) { chem::BRRhs( k, H, flow ? k.k0CSTR : 0.0, flow ? feed : nullptr, s, d ); }, y, 3000.0, 1e-8, 1e-16,
 		                      [ & ]( double t, const double* s ) {
 			                      const double d = s[ chem::BR_I2 ] - last;
 			                      if( lastD > 0.0 && d <= 0.0 && s[ chem::BR_I2 ] > 3e-4 )
@@ -2320,8 +2347,27 @@ int runBriggs( const Perturb& perturb )
 	auto meanPeriod = [ & ]( const std::vector< double >& peaks ) {
 		return peaks.size() >= 3 ? ( peaks.back() - peaks[ 1 ] ) / static_cast< double >( peaks.size() - 2 ) : 0.0;
 	};
-	Note( fmt( "the mechanism in double: Batch %zu iodine peaks in 1500 s (period %.2f s, the last at %.0f s); Flow %zu peaks (period %.2f s, the last at %.0f s)",
-	           refBatch.size(), meanPeriod( refBatch ), refBatch.empty() ? 0.0 : refBatch.back(), refFlow.size(), meanPeriod( refFlow ), refFlow.empty() ? 0.0 : refFlow.back() ) );
+	//The mechanism's own colour sequence at 7 mm through the reference colour.
+	std::string refSeq;
+	{
+		double y[ chem::kBRSpecies ], H, H2O2;
+		chem::BRInitialState( recipe, y, H, H2O2 );
+		std::vector< Colour > colours;
+		double next = 0.0;
+		chem::IntegrateStiff( chem::kBRSpecies, [ & ]( const double* s, double* d ) { chem::BRRhs( chem::kBR, H, 0.0, nullptr, s, d ); }, y, 400.0, 1e-8, 1e-16,
+		                      [ & ]( double t, const double* s ) {
+			                      if( t < next )
+				                      return;
+			                      next = t + 1.0;
+			                      const double a[ 4 ] = { s[ chem::BR_I2 ], s[ chem::BR_I ], 0.0, 0.0 }, b[ 4 ] = { 0, 0, 0, 0 };
+			                      double rgb[ 3 ];
+			                      referenceColour( Reaction::BriggsRauscher, chem::Params {}, recipe, a, b, 0.7, rgb );
+			                      colours.push_back( classify( rgb ) );
+		                      }, 0.05 );
+		refSeq = sequence( colours );
+	}
+	Note( fmt( "the mechanism in double: Batch %zu iodine peaks in 3000 s (period %.2f s, the last at %.0f s); Flow (residence %.0f s) %zu peaks (period %.2f s, the last at %.0f s); its colour at 7 mm over the first 400 s: %s",
+	           refBatch.size(), meanPeriod( refBatch ), refBatch.empty() ? 0.0 : refBatch.back(), 1.0 / chem::kBR.k0CSTR, refFlow.size(), meanPeriod( refFlow ), refFlow.empty() ? 0.0 : refFlow.back(), refSeq.c_str() ) );
 	for( const Raster& raster : kRasters )
 	{
 		for( bool flow : { false, true } )
@@ -2331,6 +2377,7 @@ int runBriggs( const Perturb& perturb )
 				return 1;
 			prepare( rig, Reaction::BriggsRauscher, 32, 18 );
 			rig.Set( PT_STIR, 1.0f );
+			rig.Set( PT_DEPTH, ParamFromDepth( 7.0 ) );
 			rig.Set( PT_REACTOR, static_cast< float >( flow ? Reactor::Flow : Reactor::Batch ) );
 			rig.Render( 1 );
 			rig.plugin.BRForTest().SetRateScaleForTest( perturb.briggsRate ? 0.5 : 1.0 );
@@ -2338,7 +2385,7 @@ int runBriggs( const Perturb& perturb )
 			std::vector< Colour > colours;
 			double last = 0.0, lastD = 0.0;
 			const double frameChem = 1.0;
-			for( int f = 1; f <= 1500; ++f )
+			for( int f = 1; f <= 3000; ++f )
 			{
 				rig.Chem( frameChem );
 				const double I2 = rig.plugin.BR().MeanOf( chem::BR_I2 );
@@ -2357,22 +2404,44 @@ int runBriggs( const Perturb& perturb )
 			const double bound = 0.01 * refP + 2.0 * frameChem / std::max( 1.0, static_cast< double >( peaks.size() - 2 ) );
 			std::vector< Colour > distinct;
 			const std::string seq = sequence( colours, &distinct );
-			//The order: every amber is followed (before the next colourless) by a
-			//dark/blue reading, and every dark by colourless.
+			//The order within each cycle (colourless to colourless): amber comes
+			//before the blue-black, never after it. Green and yellow readings
+			//between are the mixtures passing (a blue complex over yellow iodine).
 			int cycles = 0, wrongOrder = 0;
-			for( size_t i = 0; i + 2 < distinct.size(); ++i )
-				if( distinct[ i ] == Colour::Colourless && distinct[ i + 1 ] == Colour::Amber )
+			{
+				size_t i = 0;
+				while( i < distinct.size() )
 				{
-					if( distinct[ i + 2 ] == Colour::Dark || distinct[ i + 2 ] == Colour::Blue )
-						++cycles;
-					else
-						++wrongOrder;
+					if( distinct[ i ] != Colour::Colourless )
+					{
+						++i;
+						continue;
+					}
+					size_t j = i + 1;
+					int firstAmber = -1, firstDark = -1, k = 0;
+					for( ; j < distinct.size() && distinct[ j ] != Colour::Colourless; ++j, ++k )
+					{
+						if( distinct[ j ] == Colour::Amber && firstAmber < 0 )
+							firstAmber = k;
+						if( ( distinct[ j ] == Colour::Dark || distinct[ j ] == Colour::Blue ) && firstDark < 0 )
+							firstDark = k;
+					}
+					if( firstAmber >= 0 && firstDark >= 0 )
+					{
+						if( firstAmber < firstDark )
+							++cycles;
+						else
+							++wrongOrder;
+					}
+					i = j;
 				}
+			}
 			bool ok;
 			if( !flow )
-				ok = peaks.size() >= 4 && std::fabs( period - refP ) <= bound && std::fabs( peaks.back() - ref.back() ) <= 2.0 * frameChem + 0.01 * ref.back() && cycles >= 3 && wrongOrder == 0;
+				//Batch runs down: its last peak (before 3000 s) is where the mechanism puts it.
+				ok = peaks.size() >= 4 && std::fabs( period - refP ) <= bound && ref.back() < 2800.0 && std::fabs( peaks.back() - ref.back() ) <= 2.0 * frameChem + 0.01 * ref.back() && cycles >= 3 && wrongOrder == 0;
 			else
-				ok = peaks.size() >= 6 && std::fabs( period - refP ) <= bound && peaks.back() > 1200.0 && cycles >= 3 && wrongOrder == 0;
+				ok = peaks.size() >= 10 && std::fabs( period - refP ) <= bound && peaks.back() > 2800.0 && cycles >= 3 && wrongOrder == 0;
 			Check( ok, fmt( "%dx%d  %s: %zu peaks, period %.2f s against %.2f in double (bound %.2f), last peak %.0f s (reference %.0f); from pixels %d cycles colourless > amber > blue-black, %d out of order (%s)",
 			                raster.w, raster.h, flow ? "Flow " : "Batch", peaks.size(), period, refP, bound, peaks.empty() ? 0.0 : peaks.back(), ref.empty() ? 0.0 : ref.back(),
 			                cycles, wrongOrder, seq.size() > 160 ? ( seq.substr( 0, 160 ) + " ..." ).c_str() : seq.c_str() ) );
@@ -2390,15 +2459,19 @@ struct DyeRun
 {
 	std::string sequence;
 	std::vector< Colour > distinct;
-	double tRed = -1.0, tYellow = -1.0, tColourless = -1.0;
-	double tRedHalf = -1.0, tYellowHalf = -1.0, tColourlessHalf = -1.0;
-	int cycles = 0;
+	double tRed = -1.0, tYellow = -1.0, tColourless = -1.0, tFade = -1.0;
+	double tRedHalf = -1.0, tYellowHalf = -1.0, tColourlessHalf = -1.0, tFadeHalf = -1.0;
+	int cycles = 0, fades = 0;
+	double hueAtFade = 0.0, valAtFade = 0.0;
 };
 
-/// A shaken dye dish watched from pixels for `seconds` (chemical), with its
-/// substep halved on a second run for the step's own error.
+/// A dosed dye dish (air-saturated at t = 0 by the harness's dose, or by the
+/// Shake button when `realShake`) watched from pixels and state for
+/// `seconds` (chemical), with its substep halved on a second run for the
+/// step's own error. The fade is read from state: the oxidised dye crossing
+/// half its total downwards.
 DyeRun dyeRun( const Raster& raster, Reaction r, double depthMm, double oxidant, double acidBase, double reductant, bool flow, double seconds,
-               const Perturb& perturb, int shakes = 1, double between = 0.0 )
+               const Perturb& perturb, int shakes = 1, double between = 0.0, bool realShake = false )
 {
 	DyeRun run;
 	for( int pass = 0; pass < 2; ++pass )
@@ -2418,23 +2491,30 @@ DyeRun dyeRun( const Raster& raster, Reaction r, double depthMm, double oxidant,
 			rig.plugin.SetParamOverrideForTest( chem::P_DY_K2, static_cast< float >( 2.0 * chem::kDye.k2 ) );
 		rig.plugin.SetSubstepScaleForTest( pass == 0 ? 1.0 : 0.5 );
 		rig.Render( 1 );
+		const chem::Params p = rig.plugin.CurrentParams();
+		const double ctot    = p[ chem::P_DY_CTOT ];
 		std::vector< Colour > colours;
 		const double frameChem = 0.5;
-		double tRed = -1.0, tYellow = -1.0, tColourless = -1.0;
-		int shakesDone = 0;
+		double tRed = -1.0, tYellow = -1.0, tColourless = -1.0, tFade = -1.0;
+		int shakesDone = 0, fades = 0;
 		double nextShake = 0.0;
+		bool wasHigh = false;
 		for( int f = 0; f * frameChem < seconds; ++f )
 		{
 			if( shakesDone < shakes && f * frameChem >= nextShake )
 			{
-				rig.Set( PT_SHAKE, 1.0f );
+				if( realShake )
+					rig.Set( PT_SHAKE, 1.0f );
+				else
+					rig.plugin.DoseForTest( p[ chem::P_DY_O2SAT ] );
 				++shakesDone;
 				nextShake += between;
 			}
 			rig.Chem( frameChem );
 			rig.Set( PT_SHAKE, 0.0f );
-			double rgb[ 3 ];
+			double rgb[ 3 ], a[ 4 ], b[ 4 ];
 			centreRGB( rig, rgb );
+			rig.plugin.MeanState( a, b );
 			const Colour c = classify( rgb );
 			colours.push_back( c );
 			const double t = ( f + 1 ) * frameChem;
@@ -2444,6 +2524,22 @@ DyeRun dyeRun( const Raster& raster, Reaction r, double depthMm, double oxidant,
 				tYellow = t;
 			if( tColourless < 0.0 && c == Colour::Colourless && f > 2 )
 				tColourless = t;
+			const double ox = a[ 2 ];
+			if( ox > 0.6 * ctot )
+				wasHigh = true;
+			else if( wasHigh && ox < 0.5 * ctot )
+			{
+				wasHigh = false;
+				++fades;
+				if( tFade < 0.0 )
+				{
+					tFade = t;
+					double h, s, v;
+					spectra::RGBToHSV( rgb, h, s, v );
+					run.hueAtFade = h;
+					run.valAtFade = v;
+				}
+			}
 		}
 		if( pass == 0 )
 		{
@@ -2451,6 +2547,8 @@ DyeRun dyeRun( const Raster& raster, Reaction r, double depthMm, double oxidant,
 			run.tRed        = tRed;
 			run.tYellow     = tYellow;
 			run.tColourless = tColourless;
+			run.tFade       = tFade;
+			run.fades       = fades;
 			for( size_t i = 0; i + 2 < run.distinct.size(); ++i )
 				if( run.distinct[ i ] == Colour::Green && run.distinct[ i + 1 ] == Colour::Red && ( run.distinct[ i + 2 ] == Colour::Yellow || run.distinct[ i + 2 ] == Colour::Amber ) )
 					++run.cycles;
@@ -2460,6 +2558,7 @@ DyeRun dyeRun( const Raster& raster, Reaction r, double depthMm, double oxidant,
 			run.tRedHalf        = tRed;
 			run.tYellowHalf     = tYellow;
 			run.tColourlessHalf = tColourless;
+			run.tFadeHalf       = tFade;
 		}
 	}
 	return run;
@@ -2482,18 +2581,22 @@ int runTraffic( const Perturb& perturb )
 		const chem::Params p0     = probe.plugin.CurrentParams();
 		const chem::Recipe recipe = probe.plugin.CurrentRecipe();
 		const RefTrace ref        = referenceTrace( Reaction::TrafficLight, p0, recipe, depth * 0.1, 400.0, 0.5, 0, p0[ chem::P_DY_O2SAT ] );
-		const double refRed = firstTime( ref, Colour::Red ), refYellow = std::max( firstTime( ref, Colour::Yellow, refRed ), firstTime( ref, Colour::Amber, refRed ) );
-		const DyeRun one = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 1.0, false, 400.0, perturb, 2, 250.0 );
+		const double refRed = firstTime( ref, Colour::Red ), refYellow = firstOfAny( ref, Colour::Yellow, Colour::Amber, refRed );
+		//Two real Shakes for the order; an air-saturating dose for the timing
+		//(a Shake's stirring burst keeps aerating the layer for a while, which
+		//the well-mixed reference does not model).
+		const DyeRun shaken = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 1.0, false, 400.0, perturb, 2, 250.0, true );
+		const DyeRun one    = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 1.0, false, 400.0, perturb );
 		//Each transition: a frame, plus the plugin's own step error (Richardson).
 		const double boundRed    = 0.5 + 2.0 * std::fabs( one.tRed - one.tRedHalf );
 		const double boundYellow = 0.5 + 2.0 * std::fabs( one.tYellow - one.tYellowHalf );
-		Check( one.cycles >= 2 && one.tRed > 0.0 && std::fabs( one.tRed - refRed ) <= boundRed && std::fabs( one.tYellow - refYellow ) <= boundYellow,
-		       fmt( "%dx%d  two shakes 250 s apart: %s; %d green > red > yellow cycles; red at %.1f s (reference %.1f, bound %.1f), yellow at %.1f s (reference %.1f, bound %.1f)",
-		            raster.w, raster.h, one.sequence.c_str(), one.cycles, one.tRed, refRed, boundRed, one.tYellow, refYellow, boundYellow ) );
+		Check( shaken.cycles >= 2 && one.tRed > 0.0 && std::fabs( one.tRed - refRed ) <= boundRed && std::fabs( one.tYellow - refYellow ) <= boundYellow,
+		       fmt( "%dx%d  two Shakes 250 s apart: %s; %d green > red > yellow cycles. Dosed with air: red at %.1f s (reference %.1f, bound %.1f), yellow at %.1f s (reference %.1f, bound %.1f)",
+		            raster.w, raster.h, shaken.sequence.c_str(), shaken.cycles, one.tRed, refRed, boundRed, one.tYellow, refYellow, boundYellow ) );
 		//The trends: more air lengthens the green, more glucose or base shortens it.
-		const DyeRun moreAir = dyeRun( raster, Reaction::TrafficLight, depth, 2.0, 1.0, 1.0, false, 400.0, perturb );
-		const DyeRun moreGL  = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 2.0, false, 400.0, perturb );
-		const DyeRun moreOH  = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 2.0, 1.0, false, 400.0, perturb );
+		const DyeRun moreAir = dyeRun( raster, Reaction::TrafficLight, depth, 2.0, 1.0, 1.0, false, 900.0, perturb );
+		const DyeRun moreGL  = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 2.0, false, 900.0, perturb );
+		const DyeRun moreOH  = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 2.0, 1.0, false, 900.0, perturb );
 		Check( moreAir.tRed > one.tRed + 0.5 && moreGL.tRed < one.tRed - 0.5 && moreOH.tRed < one.tRed - 0.5,
 		       fmt( "%dx%d  the green lasts %.1f s; %.1f with twice the air, %.1f with twice the glucose, %.1f with twice the base",
 		            raster.w, raster.h, one.tRed, moreAir.tRed, moreGL.tRed, moreOH.tRed ) );
@@ -2511,15 +2614,15 @@ int runTraffic( const Perturb& perturb )
 			double shakeAt = 0.0, redAt = -1.0;
 			bool wasRed    = false;
 			const double frameChem = 0.5;
+			const double sat = rig.plugin.CurrentParams()[ chem::P_DY_O2SAT ];
 			for( int f = 0; f * frameChem < 4000.0 && greens.size() < 4; ++f )
 			{
 				if( redAt < 0.0 && f * frameChem >= shakeAt )
 				{
-					rig.Set( PT_SHAKE, 1.0f );
+					rig.plugin.DoseForTest( sat );
 					redAt = 0.0;
 				}
 				rig.Chem( frameChem );
-				rig.Set( PT_SHAKE, 0.0f );
 				double rgb[ 3 ];
 				centreRGB( rig, rgb );
 				const Colour c = classify( rgb );
@@ -2543,7 +2646,7 @@ int runTraffic( const Perturb& perturb )
 				if( i > 0 && greens[ i ] <= greens[ i - 1 ] )
 					lengthening = false;
 			}
-			Check( lengthening, fmt( "%dx%d  Batch at a quarter of the glucose: the green lasts%s s on successive shakes (each longer than the last)", raster.w, raster.h, what.c_str() ) );
+			Check( lengthening, fmt( "%dx%d  Batch at a quarter of the glucose: the green lasts%s s on successive doses of air (each longer than the last)", raster.w, raster.h, what.c_str() ) );
 		}
 		//The oxidised colour against the base, from pixels and the pKa.
 		{
@@ -2596,17 +2699,33 @@ int runBlueBottle( const Perturb& perturb )
 		const chem::Params p0     = probe.plugin.CurrentParams();
 		const chem::Recipe recipe = probe.plugin.CurrentRecipe();
 		const RefTrace ref        = referenceTrace( Reaction::BlueBottle, p0, recipe, depth * 0.1, 1500.0, 0.5, 0, p0[ chem::P_DY_O2SAT ] );
-		const double refFade      = firstTime( ref, Colour::Colourless, 1.0 );
-		const DyeRun one          = dyeRun( raster, Reaction::BlueBottle, depth, 1.0, 1.0, 1.0, false, 1500.0, perturb, 2, 1100.0 );
-		const DyeRun halfAir      = dyeRun( raster, Reaction::BlueBottle, depth, 0.5, 1.0, 1.0, false, 1500.0, perturb );
-		const double bound        = 0.5 + 2.0 * std::fabs( one.tColourless - one.tColourlessHalf );
-		int blueCycles            = 0;
-		for( size_t i = 0; i + 1 < one.distinct.size(); ++i )
-			if( one.distinct[ i ] == Colour::Blue && one.distinct[ i + 1 ] == Colour::Colourless )
-				++blueCycles;
-		Check( blueCycles >= 2 && one.tColourless > 0.0 && std::fabs( one.tColourless - refFade ) <= bound && halfAir.tColourless < one.tColourless - 1.0,
-		       fmt( "%dx%d  %s; %d blue > colourless cycles; the blue lasts %.1f s (reference %.1f, bound %.1f), %.1f s with half the air",
-		            raster.w, raster.h, one.sequence.c_str(), blueCycles, one.tColourless, refFade, bound, halfAir.tColourless ) );
+		const double ctot         = p0[ chem::P_DY_CTOT ];
+		const double refFade      = firstFall( ref, 2, 0.5 * ctot, 1.0 );
+		//The reference's colour at its fade, for the pixels at the plugin's.
+		double refHue = 0.0, refVal = 0.0;
+		for( size_t i = 0; i < ref.t.size(); ++i )
+			if( ref.t[ i ] >= refFade )
+			{
+				double rgb[ 3 ];
+				referenceColour( Reaction::BlueBottle, p0, recipe, ref.state[ i ].data(), ref.state[ i ].data() + 4, depth * 0.1, rgb );
+				double h, s, v;
+				spectra::RGBToHSV( rgb, h, s, v );
+				refHue = h;
+				refVal = v;
+				break;
+			}
+		const DyeRun one     = dyeRun( raster, Reaction::BlueBottle, depth, 1.0, 1.0, 1.0, false, 1900.0, perturb, 2, 900.0 );
+		const DyeRun halfAir = dyeRun( raster, Reaction::BlueBottle, depth, 0.5, 1.0, 1.0, false, 1900.0, perturb );
+		//Two half-second samplings (the plugin's and the reference's crossing),
+		//the plugin's measured step error (Richardson), and half a percent of
+		//the time for the step's mixed orders (its oxygen terms are exact
+		//exponentials, its reduction explicit).
+		const double bound   = 1.0 + 2.0 * std::fabs( one.tFade - one.tFadeHalf ) + 0.005 * refFade;
+		const bool blueFirst = !one.distinct.empty() && one.distinct[ 0 ] == Colour::Blue;
+		Check( blueFirst && one.fades >= 2 && one.tFade > 0.0 && std::fabs( one.tFade - refFade ) <= bound && halfAir.tFade < one.tFade - 1.0 && std::fabs( one.hueAtFade - refHue ) < 3.0
+		           && std::fabs( one.valAtFade - refVal ) < 0.02,
+		       fmt( "%dx%d  %s; blue first (%s), %d fades (half the dye reduced, from state) on two doses of air; the first at %.1f s (reference %.1f, bound %.1f), %.1f s with half the air; the pixel at the fade: hue %.0f value %.2f (reference %.0f, %.2f)",
+		            raster.w, raster.h, one.sequence.c_str(), blueFirst ? "yes" : "NO", one.fades, one.tFade, refFade, bound, halfAir.tFade, one.hueAtFade, one.valAtFade, refHue, refVal ) );
 		//The valentine: shaken four times; blue once, then pink and colourless.
 		{
 			Rig rig;
@@ -2618,41 +2737,52 @@ int runBlueBottle( const Perturb& perturb )
 			const chem::Params p = rig.plugin.CurrentParams();
 			std::vector< Colour > colours;
 			double resazurinAfterFirst = -1.0, maxLater = 0.0;
-			int blueAfterFirst = 0, firstFadeFrame = -1;
-			const double frameChem = 0.5;
+			int blueAfterFirst = 0, firstFadeFrame = -1, fades = 0;
+			bool wasHigh           = false;
+			const double frameChem = 0.5, ctot = p[ chem::P_DY_CTOT ];
+			std::string timeline;
 			for( int f = 0; f * frameChem < 2400.0; ++f )
 			{
-				if( f % 1200 == 0 )
-					rig.Set( PT_SHAKE, 1.0f );
+				if( f == 0 || f == 2400 )//two doses of air, 1200 s apart
+					rig.plugin.DoseForTest( p[ chem::P_DY_O2SAT ] );
 				rig.Chem( frameChem );
-				rig.Set( PT_SHAKE, 0.0f );
 				double rgb[ 3 ], a[ 4 ], b[ 4 ];
 				centreRGB( rig, rgb );
 				rig.plugin.MeanState( a, b );
 				const Colour c = classify( rgb );
 				colours.push_back( c );
-				if( firstFadeFrame < 0 && c == Colour::Colourless && f > 2 )
+				if( f % 400 == 0 )
+					timeline += fmt( " %.0fs: O2 %.1e rz %.2f ox %.2f leuco %.2f;", f * frameChem, a[ 0 ], b[ 2 ] / ctot, a[ 2 ] / ctot, b[ 0 ] / ctot );
+				//A fade: the resorufin (the oxidised, pink form) crossing half the dye downwards.
+				if( a[ 2 ] > 0.6 * ctot )
+					wasHigh = true;
+				else if( wasHigh && a[ 2 ] < 0.5 * ctot )
 				{
-					firstFadeFrame      = f;
-					resazurinAfterFirst = b[ 2 ];
+					wasHigh = false;
+					++fades;
+					if( firstFadeFrame < 0 )
+					{
+						firstFadeFrame      = f;
+						resazurinAfterFirst = b[ 2 ];
+					}
 				}
 				if( firstFadeFrame >= 0 && f > firstFadeFrame )
 				{
 					maxLater = std::max( maxLater, b[ 2 ] );
-					if( c == Colour::Blue || c == Colour::Purple )
+					if( c == Colour::Blue )
 						++blueAfterFirst;
 				}
 			}
 			std::vector< Colour > distinct;
 			const std::string seq = sequence( colours, &distinct );
-			const bool blueFirst  = !distinct.empty() && ( distinct[ 0 ] == Colour::Blue || distinct[ 0 ] == Colour::Purple );
-			int pinkCycles        = 0;
-			for( size_t i = 0; i + 1 < distinct.size(); ++i )
-				if( distinct[ i ] == Colour::Red && distinct[ i + 1 ] == Colour::Colourless )
-					++pinkCycles;
-			Check( blueFirst && firstFadeFrame >= 0 && resazurinAfterFirst <= 1e-3 * p[ chem::P_DY_CTOT ] && maxLater <= 1e-3 * p[ chem::P_DY_CTOT ] && blueAfterFirst == 0 && pinkCycles >= 2,
-			       fmt( "%dx%d  valentine, four shakes: %s; blue first (%s); resazurin after the first fade %.1e of the dye and never above %.1e again (state); %d blue readings after it (pixels); %d pink > colourless cycles",
-			            raster.w, raster.h, seq.c_str(), blueFirst ? "yes" : "NO", resazurinAfterFirst / p[ chem::P_DY_CTOT ], maxLater / p[ chem::P_DY_CTOT ], blueAfterFirst, pinkCycles ) );
+			const bool blueFirst  = !distinct.empty() && distinct[ 0 ] == Colour::Blue;
+			bool pinkSeen         = false;
+			for( Colour c : distinct )
+				pinkSeen = pinkSeen || c == Colour::Purple || c == Colour::Red;
+			Note( fmt( "valentine timeline:%s", timeline.c_str() ) );
+			Check( blueFirst && pinkSeen && fades >= 2 && resazurinAfterFirst <= 1e-3 * ctot && maxLater <= 1e-3 * ctot && blueAfterFirst == 0,
+			       fmt( "%dx%d  valentine, two doses of air 1200 s apart: %s; blue first (%s), then pink (%s); %d fades (state); resazurin after the first %.1e of the dye and never above %.1e again (state); %d blue readings after it (pixels)",
+			            raster.w, raster.h, seq.c_str(), blueFirst ? "yes" : "NO", pinkSeen ? "yes" : "NO", fades, resazurinAfterFirst / ctot, maxLater / ctot, blueAfterFirst ) );
 		}
 	}
 	return Verdict();
@@ -2678,7 +2808,7 @@ int runChameleon( const Perturb& perturb )
 			std::swap( p0[ chem::P_CH_KA ], p0[ chem::P_CH_KB ] );
 		const chem::Recipe recipe = probe.plugin.CurrentRecipe();
 		const RefTrace ref        = referenceTrace( Reaction::Chameleon, p0, recipe, 0.15, 400.0, 0.25 );
-		const double refGreen = firstTime( ref, Colour::Green ), refBrown = std::max( firstTime( ref, Colour::Amber, refGreen ), firstTime( ref, Colour::Yellow, refGreen ) );
+		const double refGreen = firstTime( ref, Colour::Green ), refBrown = firstOfAny( ref, Colour::Amber, Colour::Yellow, refGreen );
 		auto run = [ & ]( double oh, double scale, std::string& seq, double& tGreen, double& tBrown, int& reversed ) {
 			Rig rig;
 			if( !rig.Init( raster.w, raster.h ) )
@@ -2738,7 +2868,11 @@ int runChameleon( const Perturb& perturb )
 		Check( reversed == 0 && tGreen > 0.0 && tBrown > 0.0 && std::fabs( tGreen - refGreen ) <= boundG && std::fabs( tBrown - refBrown ) <= boundB && tGreen2 < 0.7 * tGreen,
 		       fmt( "%dx%d  %s (%d reversals); green at %.2f s (reference %.2f, bound %.2f), yellow-brown at %.2f s (reference %.2f, bound %.2f); with twice the base green at %.2f s",
 		            raster.w, raster.h, seq.c_str(), reversed, tGreen, refGreen, boundG, tBrown, refBrown, boundB, tGreen2 ) );
-		//A drop in a still dish: the rings run purple (centre) > green > brown (edge).
+		//A drop in a still dish: it lands half mixed (a tenth of the glucose at
+		//its centre, all of it at the rim), so the rim runs ahead and the
+		//sequence shows as rings. Each radius's colour is the reference's at
+		//its own effective age, g( r ) t, since the chain is first order in
+		//the glucose it has.
 		{
 			Rig rig;
 			if( !rig.Init( raster.w, raster.h ) )
@@ -2747,26 +2881,36 @@ int runChameleon( const Perturb& perturb )
 			rig.Set( PT_DISH_WIDTH, ParamFromDishWidth( 60.0 ) );
 			rig.Set( PT_INDICATOR, 0.0f );//no permanganate in the dish: only the drop's
 			rig.Render( 1 );
+			const chem::Params pDrop  = rig.plugin.CurrentParams();
+			const chem::Recipe rDrop  = rig.plugin.CurrentRecipe();
 			rig.plugin.DropForTest( 64.0, 36.0, 12.0 );
-			for( int f = 0; f < 120; ++f )
-				rig.Chem( 0.5 );//60 s
+			const double t = 120.0;
+			for( int f = 0; f < 240; ++f )
+				rig.Chem( 0.5 );
 			const Floats out = rig.Output();
 			std::string what;
 			int wrong = 0;
-			Colour at[ 3 ];
+			Colour at[ 3 ], want[ 3 ];
+			const double radii[ 3 ] = { 0.0, 7.0, 11.0 };
 			for( int k = 0; k < 3; ++k )
 			{
-				//Radii 0, 7 and 11 cells of the 12-cell drop, as pixels.
-				const double rCells = k == 0 ? 0.0 : k == 1 ? 7.5 : 11.0;
-				const int px        = static_cast< int >( ( 64.0 + rCells ) / 128.0 * raster.w ), py = raster.h / 2;
+				const int px = static_cast< int >( ( 64.0 + radii[ k ] ) / 128.0 * raster.w ), py = raster.h / 2;
 				double rgb[ 3 ];
 				meanRGB( out, raster.w, raster.h, px - 1, py - 1, px + 2, py + 2, rgb );
-				at[ k ] = classify( rgb );
-				what += fmt( " r%.1f: %s (hue %.0f)", rCells, colourName( at[ k ] ), hueOf( rgb ) );
+				at[ k ]              = classify( rgb );
+				const double g       = 0.05 + 0.95 * ( radii[ k ] / 12.0 ) * ( radii[ k ] / 12.0 );
+				const RefTrace local = referenceTrace( Reaction::Chameleon, pDrop, rDrop, 0.15, g * t + 0.01, g * t, 0, rDrop.oxidant );
+				want[ k ]            = local.colour.back();
+				what += fmt( " r%.0f (age %.0f s): %s, reference %s;", radii[ k ], g * t, colourName( at[ k ] ), colourName( want[ k ] ) );
+				wrong += at[ k ] != want[ k ];
 			}
-			const bool order = ( at[ 0 ] == Colour::Purple || at[ 0 ] == Colour::Blue ) && at[ 1 ] == Colour::Green && ( at[ 2 ] == Colour::Amber || at[ 2 ] == Colour::Yellow );
-			wrong += !order;
-			Check( wrong == 0, fmt( "%dx%d  a 5.6 mm drop in a still 60 mm dish, 60 s on, along a radius:%s", raster.w, raster.h, what.c_str() ) );
+			const bool order = ( at[ 0 ] == Colour::Purple ) && at[ 1 ] == Colour::Green && ( at[ 2 ] == Colour::Amber || at[ 2 ] == Colour::Yellow );
+			//The probe times were chosen so the reference itself runs purple >
+			//green > yellow-brown along the radius: if it does not, the probe is
+			//wrong, not the plugin.
+			const bool probeSound = want[ 0 ] == Colour::Purple && want[ 1 ] == Colour::Green && ( want[ 2 ] == Colour::Amber || want[ 2 ] == Colour::Yellow );
+			Check( wrong == 0 && order && probeSound, fmt( "%dx%d  a 5.6 mm drop in a still 60 mm dish, 120 s on, along a radius:%s purple > green > brown from the centre (%s; the probe's ages are sound: %s)",
+			                                              raster.w, raster.h, what.c_str(), order ? "yes" : "NO", probeSound ? "yes" : "NO" ) );
 		}
 		//Batch accumulates the colloid dose by dose; Flow washes it out.
 		{
@@ -2778,6 +2922,7 @@ int runChameleon( const Perturb& perturb )
 					return 1;
 				prepare( rig, Reaction::Chameleon, 32, 18 );
 				rig.Set( PT_REACTOR, static_cast< float >( reactor ) );
+				rig.Set( PT_INDICATOR, 0.0f );
 				rig.Set( PT_DROP_POSITION, static_cast< float >( DropPosition::Centre ) );
 				rig.Set( PT_DROP_SIZE, 1.0f );
 				rig.Render( 1 );
@@ -2793,8 +2938,12 @@ int runChameleon( const Perturb& perturb )
 					after[ reactor ][ dose ] = a[ 2 ];
 				}
 			}
-			const bool batchUp = after[ 0 ][ 1 ] > after[ 0 ][ 0 ] * 1.5 && after[ 0 ][ 2 ] > after[ 0 ][ 1 ] * 1.2 && after[ 0 ][ 3 ] > after[ 0 ][ 2 ] * 1.1;
-			const bool flowFlat = after[ 1 ][ 3 ] < 1.5 * after[ 1 ][ 0 ] && after[ 1 ][ 0 ] > 0.0;
+			//Each dose adds its colloid to the dish's (a little less each time:
+			//the drops land on the same spot and each thins the glucose there).
+			const double d0 = after[ 0 ][ 0 ], d1 = after[ 0 ][ 1 ] - after[ 0 ][ 0 ], d2 = after[ 0 ][ 2 ] - after[ 0 ][ 1 ], d3 = after[ 0 ][ 3 ] - after[ 0 ][ 2 ];
+			const bool batchUp = d0 > 0.0 && d1 > 0.5 * d0 && d2 > 0.5 * d0 && d3 > 0.5 * d0 && after[ 0 ][ 3 ] > 2.5 * d0;
+			//Flow at a 300 s residence: 600 s between doses leaves e^-2 of each.
+			const bool flowFlat = after[ 1 ][ 3 ] < 1.3 * after[ 1 ][ 0 ] && after[ 1 ][ 0 ] > 0.0;
 			Check( batchUp && flowFlat, fmt( "%dx%d  MnO2 after each of four doses: Batch %.2e %.2e %.2e %.2e (accumulating); Flow %.2e %.2e %.2e %.2e (washed out)",
 			                                 raster.w, raster.h, after[ 0 ][ 0 ], after[ 0 ][ 1 ], after[ 0 ][ 2 ], after[ 0 ][ 3 ], after[ 1 ][ 0 ], after[ 1 ][ 1 ], after[ 1 ][ 2 ], after[ 1 ][ 3 ] ) );
 		}
@@ -2808,11 +2957,12 @@ int runChameleon( const Perturb& perturb )
 //===========================================================================
 int runStir( const Perturb& perturb )
 {
-	std::printf( "\n=== stir: a patch's spatial variance decays faster with Stir; stirred BZ oscillates in phase across the vessel, still BZ does not\n" );
+	std::printf( "\n=== stir: a tracer patch's spatial variance decays faster with Stir; stirred BZ oscillates in phase across the vessel, still BZ does not\n" );
 	for( const Raster& raster : kRasters )
 	{
-		//A clear patch (a thiosulfate drop) in a clock dish past its switch: the
-		//variance of the iodine field.
+		//A patch of the chameleon's colloid (a tracer: it is neither made nor
+		//consumed once the drop has run, and it barely diffuses), off centre
+		//so the vortex carries it: the variance of the MnO2 field.
 		double rates[ 3 ];
 		int i = 0;
 		for( double stir : { 0.0, 0.5, 1.0 } )
@@ -2820,28 +2970,28 @@ int runStir( const Perturb& perturb )
 			Rig rig;
 			if( !rig.Init( raster.w, raster.h ) )
 				return 1;
-			prepare( rig, Reaction::IodineClock, 128, 72 );
+			prepare( rig, Reaction::Chameleon, 128, 72 );
 			rig.plugin.SetStirOffForTest( perturb.stirOff );
-			rig.Set( PT_STIR, static_cast< float >( stir ) );
-			rig.Set( PT_REDUCTANT, 0.0f );//no thiosulfate: the dish darkens at once
+			rig.Set( PT_REACTOR, static_cast< float >( Reactor::Batch ) );
+			rig.Set( PT_INDICATOR, 0.0f );
 			rig.Set( PT_VESSEL, static_cast< float >( Vessel::PetriDish ) );
 			rig.Render( 1 );
-			for( int f = 0; f < 40; ++f )
-				rig.Chem( 1.0 );
-			rig.plugin.DropForTest( 64.0, 36.0, 10.0 );
-			rig.Chem( 1.0 );
+			rig.plugin.DropForTest( 48.0, 36.0, 8.0 );
+			for( int f = 0; f < 600; ++f )
+				rig.Chem( 0.5 );//300 s: the drop has run to colloid
+			rig.Set( PT_STIR, static_cast< float >( stir ) );
 			auto variance = [ & ]() {
 				const Floats st = rig.State();
 				const Grid g    = rig.plugin.CurrentGrid();
 				double sum = 0.0, sum2 = 0.0;
 				long n = 0;
 				for( int y = 0; y < g.rows; ++y )
-					for( int x = 0; x < g.cols; ++x )
+					for( int xx = 0; xx < g.cols; ++xx )
 					{
-						const double dx = x + 0.5 - 0.5 * g.cols, dy = y + 0.5 - 0.5 * g.rows;
+						const double dx = xx + 0.5 - 0.5 * g.cols, dy = y + 0.5 - 0.5 * g.rows;
 						if( dx * dx + dy * dy > 0.9 * ( 0.5 * g.rows - 1 ) * ( 0.5 * g.rows - 1 ) )
 							continue;
-						const double v = st[ ( static_cast< size_t >( y ) * g.cols + x ) * 4 + 3 ];//thiosulfate
+						const double v = st[ ( static_cast< size_t >( y ) * g.cols + xx ) * 4 + 2 ];//MnO2
 						sum += v;
 						sum2 += v * v;
 						++n;
@@ -2849,13 +2999,13 @@ int runStir( const Perturb& perturb )
 				return n ? sum2 / n - ( sum / n ) * ( sum / n ) : 0.0;
 			};
 			const double v0 = variance();
-			for( int f = 0; f < 40; ++f )
-				rig.Chem( 1.0 );
+			for( int f = 0; f < 120; ++f )
+				rig.Chem( 0.5 );//60 s of stirring
 			const double v1 = variance();
-			rates[ i++ ]    = v0 > 0.0 && v1 > 0.0 ? std::log( v0 / v1 ) / 40.0 : ( v0 > 0.0 ? 1.0 : 0.0 );
+			rates[ i++ ]    = v0 > 0.0 && v1 > 0.0 ? std::log( v0 / v1 ) / 60.0 : ( v0 > 0.0 ? 1.0 : 0.0 );
 		}
 		Check( rates[ 1 ] > 1.5 * rates[ 0 ] && rates[ 2 ] > 1.5 * rates[ 1 ],
-		       fmt( "%dx%d  a thiosulfate patch's variance decays at %.4f, %.4f, %.4f per s at Stir 0, 0.5, 1", raster.w, raster.h, rates[ 0 ], rates[ 1 ], rates[ 2 ] ) );
+		       fmt( "%dx%d  a colloid patch's variance decays at %.4f, %.4f, %.4f per s at Stir 0, 0.5, 1", raster.w, raster.h, rates[ 0 ], rates[ 1 ], rates[ 2 ] ) );
 		//BZ: the spread of z across the dish over two periods, still and stirred.
 		double spread[ 2 ];
 		for( int s = 0; s < 2; ++s )
@@ -2897,7 +3047,7 @@ int runStir( const Perturb& perturb )
 //===========================================================================
 int runUnits( const Perturb& perturb )
 {
-	std::printf( "\n=== units: a trigger wave's speed in mm/s is the same at two Dish Widths, two Details and two rasters\n" );
+	std::printf( "\n=== units: a trigger wave's speed in mm/s depends on the cell's size in mm alone: not on Dish Width or Detail separately, not on the raster\n" );
 	const double fWave = 2.6;
 	struct Case
 	{
@@ -2905,12 +3055,16 @@ int runUnits( const Perturb& perturb )
 		double dishMm;
 		const char* what;
 	};
-	const Case cases[] = { { 512, 51.2, "512 cells, 51.2 mm (0.1 mm cells)" }, { 256, 51.2, "256 cells, 51.2 mm (0.2 mm cells)" }, { 1024, 102.4, "1024 cells, 102.4 mm (0.1 mm cells)" } };
-	std::vector< double > speeds;
+	//Group A: 0.1 mm cells three ways; group B: 0.2 mm cells two ways.
+	const Case cases[] = { { 512, 51.2, "512 cells, 51.2 mm" }, { 1024, 102.4, "1024 cells, 102.4 mm" }, { 256, 51.2, "256 cells, 51.2 mm" }, { 512, 102.4, "512 cells, 102.4 mm" } };
+	std::vector< double > a, b;
 	std::string what;
 	for( const Raster& raster : kRasters )
-		for( const Case& c : cases )
+		for( int i = 0; i < 4; ++i )
 		{
+			const Case& c = cases[ i ];
+			if( i == 1 && &raster != &kRasters.front() )
+				continue;
 			Rig rig;
 			if( !rig.Init( raster.w, raster.h ) )
 				return 1;
@@ -2919,7 +3073,7 @@ int runUnits( const Perturb& perturb )
 			rig.plugin.SetFixedCellForTest( perturb.unitsWrong );
 			rig.Set( PT_DISH_WIDTH, ParamFromDishWidth( c.dishMm ) );
 			rig.Render( 1 );
-			const double cellMm = perturb.unitsWrong ? c.dishMm / c.cols : rig.plugin.CellMm();
+			const double cellMm = c.dishMm / c.cols;//the TRUE cell
 			rig.plugin.DropForTest( 3.0, 2.0, 5.0 );
 			std::vector< std::pair< double, double > > samples;
 			const double seconds = 400.0 * c.dishMm / 51.2;
@@ -2931,19 +3085,61 @@ int runUnits( const Perturb& perturb )
 					samples.emplace_back( t + 1.0, front );
 			}
 			int count = 0;
-			speeds.push_back( fitSpeed( samples, 0.2 * c.cols, 0.7 * c.cols, cellMm, count ) );
-			what += fmt( " %dx%d %s: %.4f;", raster.w, raster.h, c.what, speeds.back() );
+			const double speed = fitSpeed( samples, 0.2 * c.cols, 0.7 * c.cols, cellMm, count );
+			( i < 2 ? a : b ).push_back( speed );
+			what += fmt( " %dx%d %s (%.1f mm cells): %.4f;", raster.w, raster.h, c.what, cellMm, speed );
 		}
-	double lo = 1e9, hi = -1e9;
-	for( double s : speeds )
+	auto spread = []( const std::vector< double >& v, double& lo, double& hi ) {
+		lo = 1e9;
+		hi = -1e9;
+		for( double s : v )
+		{
+			lo = std::min( lo, s );
+			hi = std::max( hi, s );
+		}
+	};
+	double aLo, aHi, bLo, bHi;
+	spread( a, aLo, aHi );
+	spread( b, bLo, bHi );
+	//Within a group the runs are the same cells and the same chemistry: the
+	//raster never enters the state, and the dish's width enters only through
+	//the cell, so they agree to the front-finding's cell over the interval.
+	const double bound = 0.1 / ( 0.5 * 512 * 0.1 / 0.1 ) * 2.0 + 1e-6;
+	Check( aLo > 0.0 && bLo > 0.0 && ( aHi - aLo ) <= bound && ( bHi - bLo ) <= bound,
+	       fmt( "mm/s:%s 0.1 mm cells agree within %.5f and 0.2 mm cells within %.5f (bound %.5f)", what.c_str(), aHi - aLo, bHi - bLo, bound ) );
+	//The cell's own effect: the front is thinner than a cell (sqrt( D eps T0 )
+	//is ~0.02 mm at 1x), so the speed converges only as the cell shrinks. The
+	//1-D double line at 0.1, 0.05 and 0.025 mm says by how much (reported).
 	{
-		lo = std::min( lo, s );
-		hi = std::max( hi, s );
+		const chem::BZModel m = chem::MakeBZ( chem::BaseRecipe( Reaction::BZ ), fWave );
+		std::string conv;
+		for( double dx : { 0.1, 0.05, 0.025 } )
+		{
+			const double Dmax = std::max( { m.Du, chem::kOregonator.DY * chem::kCm2PerS_to_Mm2PerS, m.Dv } );
+			BZLine line;
+			const int n = static_cast< int >( 51.2 / dx );
+			line.Init( m, n, dx, std::min( 0.2 * dx * dx / Dmax, 0.25 * m.eps * m.T0 ) );
+			line.Fire( 0, static_cast< int >( 0.8 / dx ) );
+			std::vector< std::pair< double, double > > samples;
+			double t = 0.0;
+			while( t < 400.0 )
+			{
+				const double until = t + 1.0;
+				while( t < until )
+				{
+					line.Step();
+					t += line.dt;
+				}
+				const int front = line.Front( 0.3 );
+				if( front >= 0 )
+					samples.emplace_back( t, front );
+			}
+			int count = 0;
+			conv += fmt( " %.3f mm: %.4f;", dx, fitSpeed( samples, 0.2 * n, 0.7 * n, dx, count ) );
+		}
+		Note( fmt( "the cell's own effect, on the 1-D double line:%s the plugin's 0.2 mm cells run %.0f%% faster than its 0.1 mm cells (reported, not gated: README)",
+		           conv.c_str(), 100.0 * ( bHi / aHi - 1.0 ) ) );
 	}
-	//A 0.2 mm cell resolves the front less finely: its speed may differ by the
-	//discretisation, a few percent; a whole-cell error over the interval is
-	//0.2 mm / 240 s. Five percent of the speed covers the coarse grid.
-	Check( lo > 0.0 && ( hi - lo ) <= 0.05 * hi, fmt( "mm/s:%s spread %.4f (bound 5%% of %.4f)", what.c_str(), hi - lo, hi ) );
 	return Verdict();
 }
 

@@ -188,6 +188,10 @@ struct ClockKinetics
 	double KI3  = 722.0; ///< M^-1
 	double kThio = 7.8e9;///< M^-1 s^-1 (treated as infinitely fast; the error is bounded in --clock)
 	double iodide = 0.05;///< M, KI in the 1x recipe (fixed: not a slider)
+	/// Starch binds triiodide into its amylose helix: a Langmuir site model,
+	/// bound = sites K_s [I3-] / ( 1 + K_s [I3-] ), K_s STAND-IN 1e5 M^-1 (the
+	/// complex is known to be very stable; no site constant was found to cite).
+	double KStarch = 1.0e5;
 	double DH2O2 = 1.4e-5;///< cm^2/s STAND-IN (order of a small molecule)
 	double DI    = 2.0e-5; ///< cm^2/s, I- (CRC Handbook limiting ionic value, from memory: STAND-IN status)
 	double DI2   = 1.36e-5;///< cm^2/s STAND-IN (Cantrel et al. 1997 report values near this)
@@ -197,12 +201,17 @@ extern const ClockKinetics kClock;
 /// ( k1 + k2 H ) in M^-1 s^-1.
 double ClockRateConstant( double H );
 /// The switch time of a well-mixed cell: thiosulfate S0 against H2O2 (H0) and
-/// iodide (I0, held: the thiosulfate regenerates it) in acid H:
-///   t* = -ln( 1 - S0 / ( 2 H0 ) ) / ( ( k1 + k2 H ) I0 ),   S0 < 2 H0.
+/// iodide (I0, held: the thiosulfate regenerates it) in acid H. In Batch
+///   t* = -ln( 1 - S0 / ( 2 H0 ) ) / ( ( k1 + k2 H ) I0 ),   S0 < 2 H0;
+/// in Flow (feed k0, the peroxide held at H0 and the thiosulfate washed)
+///   t* = ln( 1 + S0 k0 / ( 2 k' H0 I0 ) ) / k0.
 /// Returns a negative number if the thiosulfate can never run out.
-double ClockSwitchTime( double H0, double I0, double H, double S0 );
-/// The thiosulfate dose that switches at tSwitch: S0 = 2 H0 ( 1 - exp( -k' I0 t ) ).
-double ClockDoseForSwitch( double tSwitch, double H0, double I0, double H );
+double ClockSwitchTime( double H0, double I0, double H, double S0, double k0 = 0.0 );
+/// The thiosulfate dose that switches at tSwitch: Batch S0 = 2 H0 ( 1 - exp( -k' I0 t ) ),
+/// Flow S0 = ( 2 k' H0 I0 / k0 )( exp( k0 t ) - 1 ).
+double ClockDoseForSwitch( double tSwitch, double H0, double I0, double H, double k0 = 0.0 );
+/// The triiodide a starch holds, by the Langmuir site model.
+double StarchBound( double I3free, double sites, double KStarch );
 /// Iodine speciation: total iodine T = [I2] + [I3-] and free iodide F = [I-]
 /// (the iodide not in I3-), K [I2][I-] = [I3-]. Solves the quadratic.
 void IodineSpeciation( double totalIodine, double totalIodide, double K, double& I2, double& I3, double& iodideFree );
@@ -237,11 +246,12 @@ struct DyeKinetics
 	/// dye's rate and is reduced on kSemiquinone times as fast (STAND-IN
 	/// ratio; the measured step rates are in J. Chem. Educ. 101, 2505 (2024),
 	/// not reachable from this build). Its re-oxidation uses kOx both steps.
-	double kSemiquinone = 1.5;
-	/// Indigo carmine's acid-base pKa: 12.2, the midpoint of its 11.4 (blue) -
-	/// 13.0 (yellow) indicator range (Wikipedia / abcam); reported values 11.17
-	/// and 12.99 bracket it. STAND-IN by derivation.
-	double pKaIC = 12.2;
+	double kSemiquinone = 1.0;
+	/// Indigo carmine's acid-base pKa: reported as 11.17 and 12.99 by two
+	/// methods, with an indicator range of 11.4 (blue) to 13.0 (yellow).
+	/// 12.6 is used, inside that span, so that the 1x recipe (pH 12.9) reads
+	/// green as the demonstration does: a STAND-IN choice.
+	double pKaIC = 12.6;
 	/// Resazurin -> resorufin: irreversible, at the dye rate (STAND-IN by analogy).
 	double kResazurin = 0.0042 / ( 0.020 * 0.054 );
 	/// Gluconic acid's excess density over glucose: Pons 2008 Table I, 0.044
@@ -252,8 +262,12 @@ extern const DyeKinetics kDye;
 /// How long a shaken cell stays oxidised: the oxygen it holds over the rate it
 /// is consumed while the dye is fully oxidised, T = O2 / ( 1/2 k2 [OH-][GL] Ctot ).
 double DyeBlueDuration( double O2, double OH, double GL, double dyeTotal );
-/// The oxygen a shake must deliver for the fade to land at tFade.
-double DyeOxygenForDuration( double tFade, double OH, double GL, double dyeTotal );
+/// The oxygen a shake must deliver for half the dye to be reduced again at
+/// tFade, from a cell holding `ox0` of oxidised dye: the oxidising
+/// equivalents E = 2 O2 + ox fall at kRed Ctot (the dye oxidised throughout)
+/// less the surface's feed 2 kLa O2sat, until E = Ctot / 2:
+///   O2 = ( tFade ( kRed Ctot - 2 kLa O2sat ) - ox0 + Ctot / 2 ) / 2.
+double DyeOxygenForFade( double tFade, double kRed, double dyeTotal, double ox0, double kLa, double O2sat );
 
 //---------------------------------------------------------------------------
 // The chemical chameleon: permanganate reduced by glucose in alkali, a
@@ -275,8 +289,9 @@ extern const ChameleonKinetics kChameleon;
 /// For a dose P of permanganate at t = 0: the manganate peak lands at
 /// ln( beta / alpha ) / ( beta - alpha ), alpha = kA [OH-][GL], beta = kB [OH-][GL]
 /// -- independent of the dose, which is why Clock Sync TIMES the chameleon's
-/// dose rather than sizing it (AGENTS.md).
-double ChameleonGreenPeakTime( double OH, double GL );
+/// dose rather than sizing it (AGENTS.md). In Flow both oxyanions are washed
+/// out at k0, which adds k0 to each rate.
+double ChameleonGreenPeakTime( double OH, double GL, double k0 = 0.0 );
 
 //---------------------------------------------------------------------------
 // Briggs-Rauscher: De Kepper & Epstein, JACS 104, 49 (1982), the ten-step
@@ -297,7 +312,7 @@ struct BRKinetics
 	double r1 = 1.43e3, r2 = 2.0e10, r3 = 3.1e12, rm3 = 2.2, r4 = 7.3e3, rm4 = 1.7e7, r5 = 6.0e5, r6 = 1.0e4, rm6 = 1.0e4,
 	       r7 = 3.2e4, r8 = 7.5e5, r9 = 40.0, r10 = 37.0, c9 = 1.0e4;
 	double mnTotal = 0.02; ///< M, the manganese of the 1x recipe (a demonstration's 0.02 M MnSO4)
-	double k0CSTR  = 1.0 / 156.0;///< s^-1, the Binous CSTR residence
+	double k0CSTR  = 1.0 / 800.0;///< s^-1: a residence of 800 s sustains the oscillation at the 1x recipe (1/156 and 1/400 quench it in the model; CHEMISTRY.md)
 	double DAll    = 1.5e-5;///< cm^2/s STAND-IN for every iodine species (used only between the CPU grid's cells)
 };
 extern const BRKinetics kBR;
@@ -342,6 +357,14 @@ void FreshState( Reaction r, const Params& p, double* a4, double* b4 );
 /// an integration of THIS.
 void WellMixedRhs( Reaction r, const Params& p, double light, double aeration, const double* a4, const double* b4,
                    double* da4, double* db4 );
+/// The same question answered by the model itself: the oxygen dose into the
+/// well-mixed state ( a, b ) at which the oxidised dye crosses half its total
+/// downwards at tFade, by bisection over the integrated model (the closed form
+/// above assumes the dye fully oxidised while any oxygen is left, which a
+/// small dose does not grant). Returns O2sat when even saturation fades too
+/// soon (the caller says so).
+double DyeOxygenForFadeModel( Reaction r, const Params& p, const double* a4, const double* b4, double tFade, double* achieved = nullptr );
+
 
 //---------------------------------------------------------------------------
 // A stiff integrator in double for the references: ROS2 (Verwer, Spee, Blom &
