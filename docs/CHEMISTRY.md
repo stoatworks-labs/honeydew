@@ -103,7 +103,7 @@ as **three variables** on the GPU (HBrO₂, Br⁻, the oxidised catalyst):
 | k₃ (2X → A + P) | 3.0×10³ M⁻¹ s⁻¹ | same |
 | k₄ (A + X → 2X + 2Z) | 42 M⁻² s⁻¹ | same |
 | k_c (B + Z → f Y, k₅ = k_c [MA]) | 1 M⁻¹ s⁻¹ | **STAND-IN**: Tyson's order-of-magnitude recommendation, from memory; the Ipsen table's k₅ = 0.167 s⁻¹ is a lumped value for their recipe |
-| f | 1.4 (the medium's default); 2.6 for the harness's excitable waves | a model parameter, not derivable from the recipe (Tyson; Jahnke & Winfree 1991) | 
+| f | the **Excitability** control, 1 to 4 (geometric), default 1.4; the harness's excitable waves at 2.6 | a model parameter, not derivable from the recipe (Tyson; Jahnke & Winfree 1991). Regimes, below | 
 | D(HBrO₂) | 1.0×10⁻⁵ cm²/s | Hynne & Sørensen 1993 via the same table |
 | D(Br⁻) | 1.6×10⁻⁵ cm²/s | same |
 | D(catalyst) | 0.6×10⁻⁵ cm²/s | same |
@@ -115,6 +115,24 @@ the bromide relaxes at (q + x)/ε′ ≈ 1 at rest, not fast, and the Tyson–Fi
 two-variable reduction misses the period by 23% (`hdtest --oregonator` states
 it: 77.6 s against 101.0 s).
 
+- **The regimes of f** (0.1.1). Jahnke & Winfree 1991 (J. Phys. Chem. 95, 4910) map
+  the two-variable Oregonator's behaviour over f and ε: the rest state is
+  unstable (the medium oscillates) between f ≈ 1/2 and 1 + √2 ≈ 2.414 for
+  q → 0, and excitable (a stable rest state that a finite kick fires, where a
+  broken wave winds a spiral) beyond. **This three-variable model at the 1×
+  recipe stops oscillating at f = 1.78** (bisection on the ODE from a 1% kick,
+  two catalyst peaks in 200 s; `chem::BZHopfF`), at 2.16 with twice the acid,
+  and at ½× acid it does not oscillate at any f ≥ 1: the boundary moves with ε
+  and ε′, and the textbook 1 + √2 is not this model's. The default 1.4 is the
+  0.1.0 dish (oscillatory); the harness's wave checks run at 2.6, where the
+  dish is excitable at every acid they use. The browser demo's read-out asks
+  the plugin which regime the sliders' recipe is in.
+- **A fresh dish** starts with HBrO₂ at 1.01 × its rest value (`kFreshKick`):
+  the rest state is an unstable fixed point in the oscillatory regime, and a
+  dish seeded exactly on it and stirred hard (the whole-vessel relaxation holds
+  the dish's mean to float rounding) stayed there for 1500 s in 0.1.0. The same
+  1% kick is what the harness's references start from. In the excitable regime
+  it decays, as a sub-threshold kick should.
 - **Field & Noyes 1974** (JACS 96, 2001): v = 0.04 cm s⁻¹ M⁻¹ √([H⁺][BrO₃⁻]),
   0.120 mm/s at the 1× recipe. The pulled-front limit 2√(D k₄ A H) with the
   constants above is 0.123 mm/s. The model's excitable trigger wave (f = 2.6)

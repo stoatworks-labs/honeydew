@@ -96,8 +96,23 @@ between texels.
   `--oregonator` reports the reduction's error.
 - **f = 1.4 at the recipe**, so the dish oscillates in bulk and the pacemakers
   lead it (targets); the excitable checks (`--fieldnoyes`, `--spiral`,
-  `--photo`) set f = 2.6, just past the Hopf point, through the test hook.
-  k₅ = 1 M⁻¹ s⁻¹ (Tyson's order) is the one Oregonator STAND-IN.
+  `--photo`) set f = 2.6 — in 0.1.0 through a test hook, since 0.1.1 through
+  the Excitability control. k₅ = 1 M⁻¹ s⁻¹ (Tyson's order) is the one
+  Oregonator STAND-IN.
+- **Excitability (0.1.1)**: the user's f, 1 to 4 geometric (f = 4^v), default
+  0.2427 = 1.4 so a 0.1.0 composition looks the same. BZ only; APPENDED after
+  the last 0.1.0 control (FFGL's ABI is by index: host 27 in the source, 29 in
+  the Over), the About block still last, in the **Reaction** group (it is a
+  property of the reaction, like Catalyst; on the demo page, which lists
+  controls in declared order, it therefore sits in a second Reaction block at
+  the end). The regime boundary is the model's own, not the textbook's: the
+  three-variable model at the 1× recipe stops oscillating at **f 1.78**
+  (slider 0.42; `chem::BZHopfF`, bisection on the ODE), at 2.16 with twice the
+  acid, and at ½× acid never oscillates; Jahnke & Winfree's 1 + √2 is the
+  two-variable model's with q → 0. The demo read-out asks the plugin.
+- **A fresh BZ dish starts a touch above its rest state** (`kFreshKick`, HBrO₂
+  × 1.01, the kick the harness's references use). 0.1.0 seeded the exact
+  rest state and a dish stirred hard never started (below).
 - **Pacemakers are a closure.** A real dish's targets come from dust and
   scratches; here a hashed site per 24×24-cell block with probability 0.3,
   radius 2.5 cells, a raised bromate there. Seed changes them.
@@ -372,6 +387,8 @@ same at both rasters to the digit printed.
 | `--turing` | one FFT bin of the fastest mode's wavenumber; contrast > 0.1; the time-average < 0.05 | a 10 mm dish gives 83 bins at 0.12 mm | both rasters |
 | `--stir` | variance decays faster with Stir; in-phase within a frame | ordering, not a value | both rasters |
 | `--units` | 0.00078 mm/s within an equal-cell group; the 0.2/0.1 mm ratio within 0.05 of the 1-D line's | the cell is the only length; a cell of front-finding over the interval | two rasters, two Dish Widths, three Details |
+| `--excitable` | both cores of the pair followed through ≥ 95% of 160 samples (a core found within 10 cells of where it last was), no sample without a singularity, ≥ 6 of 8 probes swept with a spread ≤ 2 s + 10%; at the default a pair in < 50% of samples | integer winding numbers; cores meander a few cells in 2 s (3.2 measured) | the plugin's own grid (256x144 at both rasters) |
+| `--freshstir` | two rises of the dish-mean catalyst through half the model's peak in 300 s, the first within 60 s | the ODE from the same kick peaks at 15 s; the period is 101 s | the user's clock, 0.5 chemical s a frame, both rasters |
 | `--timebase` | dt within 1e-9 s at 499,000,000 ms; the cap counted exactly | double time; integer substep counts | raster-free |
 | `--resize`, `--prime`, `--state` | exact | the state copies, the counts, the GL state | `--resize` crosses 1280x720 ↔ 320x180 ↔ 960x720 |
 
@@ -390,7 +407,7 @@ plugin where the model is the plugin's, so the shipped shader computes the
 wrong thing — and requires the check to fail. Every physics check also
 requires the measured thing to have happened (a wave reached the far third,
 the snap occurred, the fade occurred, the rings formed), so a check cannot
-pass on a dead dish. All 20 are detected at 320x180:
+pass on a dead dish. All 23 are detected at 320x180:
 
 | check | the wrong model |
 | --- | --- |
@@ -414,6 +431,8 @@ pass on a dead dish. All 20 are detected at 320x180:
 | `--stir` | Stir ignored |
 | `--units` | the cell 0.1 mm whatever Dish Width says |
 | `--turing` | the inhibitor diffusing as slowly as the activator |
+| `--excitable` | the Break Wave never pressed (a ring, not a pair); the default Excitability behaving as the excitable setting |
+| `--freshstir` | the fresh dish seeded exactly on the rest state, as 0.1.0 did |
 
 **A cue held from frame 0 pressed the button at frame 0.** The fleet's
 `valueAt` holds a track's first key before its frame, which is right for a
@@ -425,6 +444,33 @@ is the longest run of words that is a parameter (`Drop`, `Drop Size`, `Drop
 Position` all exist) and the rest is the value, so `0 Reaction Chemical
 Chameleon` reads; a value that is not a number or one of the option's names
 is refused (`strtof( "Fixed" )` is silently 0: polyhedral).
+
+**A sweep that ends after the ring has left reads "identical".** The first
+0.1.1 sweep gave the drop controls an excitable context (Excitability 0.7)
+with LATER and a 28 mm dish: by 256 s the drop's ring had left the dish and
+the excitable layer was back at rest, so Drop 0 and Drop 1 rendered the same
+picture and three controls read DEAD. The drop contexts now end 15 s after a
+20 mm drop in a 28 mm dish. And the fresh kick made the bare-context Dish
+Width sweep DEAD: 0.1.0's 0.09 of a level there had been the seed noise's
+spatial structure, and a coherent first firing has none; Dish Width is swept
+with a drop, whose disc is in millimetres.
+
+**A fixed point pinned by float is a coin flip.** The fresh-at-rest dish
+(the `--freshstir` negative) stayed put on the user's clock (0.5 chemical s a
+frame, no Reset, as the 0.1.0 binary reproduces: a constant 255,100,76 for
+1500 s) and under three other harness clocks — but with a Reset pressed and
+one chemical second a frame it started at 26 s, which made the first negative
+"undetected". The rounding sequence decides whether the dish's mean escapes,
+and the check now runs the clock a user runs. **Fleet-wide**: a check of
+"never starts" must run the exact clock it claims, and a fix for a
+rounding-pinned state must not rely on rounding (the kick is 1%, not an ulp).
+
+**The textbook Hopf point is not this model's.** The guide, the README and the
+demo first said "past 1 + √2 ≈ 2.41, slider 0.64"; the three-variable model
+at the 1× recipe stops oscillating at 1.78 (slider 0.42), and the boundary
+moves with the acid. `chem::BZHopfF` measures it; the demo asks the plugin;
+the harness prints it. A number from a different model's reduction is a
+stand-in until measured on the model shipped.
 
 **A mutant can hang.** The first transport mutant inverted the lead loop's
 test (`while( wait < lead )` → `>`), which never returns, and `mutate.sh`
@@ -450,8 +496,10 @@ harness drives the shaders the plugin ships, not a copy of them: it has none.
 
 ### The sweep's context table
 
-`tools/sweep.py` sweeps each of the 30 controls where it can act: Catalyst
-in BZ (the default); the wave controls (Reset, Seed, Stir, Detail, Drop, Drop
+`tools/sweep.py` sweeps each of the 31 controls where it can act: Catalyst
+and Excitability in BZ (the default); the drop controls and Dish Width in an
+excitable dish (Excitability 0.7), where a 20 mm drop's disc is the only
+thing in the picture, 15 chemical seconds on (the traps say why); the wave controls (Reset, Seed, Stir, Detail, Drop, Drop
 Size, Drop Position, Break Wave, Light Coupling) at Time-lapse 0.8 (256
 chemical seconds, so a drop's wave or a soup's targets exist), a Break Wave
 pressed at frame 100 once the drop's wave is there (`--set "Name=V@F"`);
@@ -533,7 +581,8 @@ port of it**:
   the clip bit for bit at Mix 0 and through an empty dish (0 of 1,555,200
   channels differ). Nothing repeats those; what runs is the check above and
   the page's own refusal of unknown shader text.
-- **A plugin fact found on the way, not fixed here**: a fresh BZ dish at Stir 1
+- **A plugin fact found on the way, FIXED in 0.1.1** (`kFreshKick`, and
+  `--freshstir` checks it): a fresh BZ dish at Stir 1
   never starts. The whole-vessel relaxation holds the uniform dish at the
   Oregonator's unstable rest state (hdtest from a fresh seed at Stir 1 is a
   constant [255, 100, 76] for 1500 chemical s; `--oregonator` starts from
@@ -563,14 +612,16 @@ The take is YouTube `EbBfD06QFAs`, from `stoatworks-backend/video/projects/honey
 `--over --pipe` through cue sheets, Resolume's demo clips under the Over). It
 found these, recorded here rather than worked around:
 
-1. **Break Wave makes no spirals at any setting a control reaches.** The shipped
+1. **FIXED in 0.1.1** (the Excitability control; `--excitable` winds a pair from
+   the controls and shows the default does not): **Break Wave makes no spirals at
+   any setting a control reaches.** The shipped
    Oregonator runs at f = 1.4 (`Chemistry.h`, bulk-oscillatory): the pipette leaves
    a flat band whose ends hook and are overrun by the next bulk firing (tried 30×,
    45× and 60× for ten seconds each). `--spiral`, `--fieldnoyes` and `--photo` set
    f = 2.6 through the harness hook, so their numbers are the excitable model's,
    not the shipped dish's. README, guide and site no longer promise spirals.
-   **Fix for 0.1.1**: make the excitable regime reachable (an Excitability control
-   for f, or a recipe that maps to it) and point `--spiral` at a reachable setting.
+   The 0.1.1 fix: the Excitability control for f, `--spiral` / `--fieldnoyes` /
+   `--photo` through it, and `--excitable` from the defaults.
 2. **The substep cap bites far below 300× when stirred**: BZ at Stir 1, Detail 256,
    above about 32× (at 45× a frame covers 0.53 of 0.75 chemical s; at 60× the
    stirred period reads 192 s); CDIMA on a 10 mm dish above ~198× at Detail 512 and
@@ -627,9 +678,11 @@ Verified on this machine (Apple Silicon), see the README's Status table for
 the numbers: every check above on the GPU at 1280x720 and 320x180, the cheap
 set on the software renderer at 320x180; both bundles universal; oxbow probe
 reads `SW Honeydew` / `HD01` / source and `SW Honeydew Over` / `HD02` /
-effect; oxbow selftest renders 120 frames through each; the 30 controls over
-both plugins all move the picture; 20 negative controls detected; 5 mutants
-caught.
+effect; oxbow selftest renders 120 frames through each; the 31 controls over
+both plugins (56 parameters) all move the picture; 23 negative controls
+detected; 5 mutants caught. 0.1.1 (the Excitability control, the fresh kick)
+was verified the same way, with `--excitable` and `--freshstir` added, and the
+demo rebuilt.
 
 Assumed, or not done:
 

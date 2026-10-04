@@ -26,7 +26,8 @@ tables or the sync logic; `docs/CHEMISTRY.md` is where every number comes from.
   name, events pressed by a `1` (then a `0` to press again); a wrong name or value is refused.
 
 ## Verify
-- Everything: `tools/verify.sh` (~15 min: reserved words, glslc, the pin, a fresh
+- Everything: `tools/verify.sh` (`VERSION_SYNC_PENDING=1` while a version bump waits
+  for sync-about to regenerate `StoatworksAbout.h`; ~15 min: reserved words, glslc, the pin, a fresh
   universal build, both bundles through lipo/plist/codesign/oxbow probe+selftest,
   every check at 1280x720 and 320x180, the cheap checks on Apple's software
   renderer at 320x180, the offline set, the negative controls, the mutants, the
@@ -34,7 +35,11 @@ tables or the sync logic; `docs/CHEMISTRY.md` is where every number comes from.
 - **The light**: `--spectra` (no GL), `--beer`, `--over-check`.
 - **BZ**: `--oregonator` (period and duty against the three-variable Oregonator
   in double), `--fieldnoyes` (plane-wave speed against the 1-D double solution
-  at three acids; Field & Noyes reported), `--spiral` (one +1/−1 pair), `--photo`.
+  at three acids; Field & Noyes reported), `--spiral` (one +1/−1 pair), `--photo`;
+  all three at f = 2.6 through the Excitability control. `--excitable` (from the
+  defaults plus Excitability 0.7, a Drop and the Break Wave button: a persistent
+  pair; none at the default), `--freshstir` (a fresh dish at Stir 1 from Reset
+  starts on the user's clock).
 - **The clocks**: `--clock` (the snap against the Harcourt–Esson closed form, Batch
   and Flow), `--sync` (Bar sync at 120 and 97 BPM: the clock, the blue bottle,
   the chameleon).
@@ -103,6 +108,14 @@ tables or the sync logic; `docs/CHEMISTRY.md` is where every number comes from.
   `demo/plugin.js` (panel, units, presets, status line).
 - `demo/vendor/` is the shared kit: never edit it, re-vendor with
   `stoatworks-backend/resolume-demo/sync.sh honeydew`.
+
+## Excitability (0.1.1)
+- The Oregonator's f, 1–4 geometric, default 1.4 (the 0.1.0 dish); BZ only; appended
+  after Mix (host index 27 source, 29 Over), the About block last, Reaction group.
+  Past the model's own boundary (f 1.78 at the 1× recipe, slider 0.42; `chem::BZHopfF`)
+  the layer is excitable and Break Wave winds spirals. A fresh BZ dish starts a touch
+  above its rest state (`chem::kFreshKick`), so a stirred fresh dish starts.
+- After any `source/` change: `demo/tools/build-wasm.sh`, then commit `demo/`.
 
 ## Not done yet
 - Public at `github.com/stoatworks-labs/honeydew`, registered on the website

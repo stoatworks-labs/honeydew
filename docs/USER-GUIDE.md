@@ -15,13 +15,17 @@ starch–iodine, the purple of permanganate, all fall out of concentrations.
 by the offline harness rather than captured from Resolume: a 60 mm wide ferroin BZ layer in
 Flow, pacemakers firing target waves that annihilate where they meet.*
 
-> **Before you rely on this:** released at **v0.1.0**, and honestly early. The chemistry is
+> **Before you rely on this:** at **v0.1.1**, and honestly early. (0.1.1 adds the
+> Excitability control, so Break Wave's spirals are reachable, and a fresh dish stirred hard
+> starts on its own; a 0.1.0 composition looks the same.) The chemistry is
 > measured rather than asserted, by a harness that drives the real plugin classes headlessly at
 > two rasters, and holds the plugin to its own literature. A stirred ferroin dish's period, read
 > from the pixels, is 101.19 s against 100.97 s from the three-variable Oregonator integrated in
 > double precision; a trigger wave's speed is 0.1017 mm/s against 0.1008 from the one-dimensional
-> solution of the same equations, at three acid strengths (in the excitable setting the harness
-> sets and no control reaches: see Known limits); the iodine clock snaps at 25.25 s
+> solution of the same equations, at three acid strengths (at Excitability 0.69, through the
+> control); a spiral pair wound from the defaults plus Excitability 0.7, a Drop and Break Wave
+> keeps both its cores through 160 of 160 samples, turning every 97 s, and the same press at the
+> default leaves none; the iodine clock snaps at 25.25 s
 > against the Harcourt–Esson closed form's 25.01; eleven batch Briggs–Rauscher oscillations
 > average 248.00 s apart against 248.04 from the De Kepper–Epstein mechanism; the Turing pattern's wavelength, read off the
 > state, is 0.122 mm against the Lengyel–Epstein model's 0.1205; every pixel of a uniform dish
@@ -72,7 +76,7 @@ is in millimetres. That is all. Nobody draws the rings:
 | --- | --- |
 | **target rings** spreading from points | a speck of dust (a pacemaker) fires early, and each pulse of oxidised catalyst travels out as a trigger wave |
 | **cusps where rings meet** | two waves annihilate: each leaves a refractory layer behind it that the other cannot cross |
-| **hooks where a wave is cut** | Break Wave draws a pipette through the waves; the broken ends curl, but in this version's oscillating dish the next wave overruns them before they wind into spirals (see Known limits) |
+| **spirals** | with Excitability in the excitable regime the layer is quiet until a drop: Break Wave draws a pipette through a wave and each broken end curls round itself for ever. At the default Excitability the dish oscillates in bulk and the next firing overruns the ends |
 | **the whole dish flipping colour at once** | stirred, every cell is at the same point in the oscillation |
 | **a sudden snap to blue-black** | the iodine clock: thiosulfate holds the iodine down until it is spent, then the starch complex forms in a moment |
 | **spots and stripes that stand still** | the CDIMA Turing pattern: an activator that diffuses slowly and an inhibitor that diffuses fast, at a wavelength the chemistry sets |
@@ -92,9 +96,11 @@ filters your clip the way a real dish on a real lightbox would.
 1. Put **SW Honeydew** in a clip slot and trigger it. A red ferroin layer appears; within a few
    seconds (at Time-lapse 30×, a few minutes of chemistry) pale blue rings spread from the
    pacemakers and meet.
-2. Press **Break Wave**. A pipette line cuts the rings and the broken ends hook round, until the
-   next wave from the pacemakers overruns them. (Spirals need an excitable layer this version
-   cannot be set to; see Known limits.)
+2. Turn **Excitability** up to about 0.7: the dish goes quiet and red (the model stops
+   oscillating at f 1.78, the slider's 0.42, at the 1× recipe). Press **Drop**, wait for the ring to reach the middle, then press **Break Wave**. The
+   pipette line cuts the ring and each broken end curls into a spiral, which turns for ever.
+   (At the default Excitability the dish oscillates in bulk and the next firing overruns the
+   cut ends: no spirals.)
 3. Turn **Stir** to 1: the dish mixes and the whole layer flips red–blue–red together, once every
    101 seconds of chemistry (about 3.4 s at 30×).
 4. Change **Reaction** to *Iodine Clock*. The layer is colourless; it snaps blue-black at 25
@@ -114,9 +120,12 @@ real second. The timescales below are chemical seconds at the 1× recipe.
 
 **Belousov–Zhabotinsky** (the default). Bromate, acid, malonic acid and a catalyst, the
 Field–Körös–Noyes mechanism as the three-variable Oregonator. In a still layer, pacemakers fire
-target waves that travel outward and annihilate where they meet; Break Wave cuts them, and the
-broken ends hook round before the next firing overruns them; stirred, the dish oscillates as one
-every 101 s. **Catalyst**
+target waves that travel at about 0.1 mm/s and annihilate where they meet; stirred, the dish
+oscillates as one every 101 s. **Excitability** is the model's stoichiometric factor f (1 to 4):
+at the default 1.4 the dish oscillates in bulk; past the model's own boundary (f 1.78 at the
+1× recipe, the slider's 0.42; it moves with the acid, 2.16 at twice; the two-variable textbook
+value 1 + √2 is not this model's) the rest state is stable, the layer is quiet until a Drop, and
+a Break Wave winds a pair of spirals turning every 97 s on the default dish. **Catalyst**
 chooses the colour pair and the photosensitivity: *Ferroin* is red (reduced) and blue
 (oxidised), the classic; *Ru(bpy)3* is orange and pale green, and light makes bromide in it, so
 a lit region is inhibited and waves stop at its edge (the Over's clip, through Light Coupling);
@@ -199,6 +208,13 @@ the default so a dish never goes quiet on stage; Batch is the demonstration.
 
 **Reset** (a button). A fresh dish, with the next set of pacemakers and drop positions.
 
+**Excitability** (f 1 to 4, geometric; default 1.4; BZ only, new in 0.1.1). The Oregonator's
+stoichiometric factor. Below the model's boundary (f 1.78 at the 1× recipe, slider 0.42; higher
+with more acid) the dish oscillates in bulk, faster at the bottom of the slider; past it the
+layer is excitable: quiet and red until a Drop
+starts a wave, and a Break Wave winds spirals. The default is the 0.1.0 dish. It is live: turn
+it up on an oscillating dish and the oscillation stops after its next cycle.
+
 **Seed** (1 to 9999, default 1). Which pacemakers (BZ) and which random drop positions. The
 same Seed always gives the same dish.
 
@@ -258,9 +274,10 @@ starts a wave), thiosulfate (the clock), air (the dye family), permanganate (the
 
 **Drop Position** (*Random*, *Centre*; the Over adds *Brightest*: where the clip is brightest).
 
-**Break Wave** (a button). A pipette drawn through the dish: it breaks every wave it crosses.
-In this version the broken ends hook and are overrun by the next firing rather than winding
-into spirals (see Known limits). BZ only.
+**Break Wave** (a button). A pipette drawn across the middle third of the dish: it erases every
+wave it crosses and leaves the medium refractory, so each broken end curls into a spiral — with
+**Excitability** in the excitable regime (0.7 is a good setting). At the default the next bulk
+firing overruns the ends. BZ only.
 
 **Shake** (a button). Shakes the dish: a burst of stirring, and air into the dye family. The
 traffic light, the blue bottle and the valentine go back to their oxidised colour.
@@ -377,9 +394,12 @@ Drop to start a wave or a cycle.
 
 **The BZ dish went quiet.** Batch: the malonic acid is spent. Reset, or switch to Flow.
 
-**A fresh BZ dish at Stir 1 never starts.** Stirred hard, the whole dish is held at one
-composition, and a perfectly uniform fresh dish sits at the Oregonator's resting state, which
-is unstable but has nothing to tip it. Press **Drop** and it starts; at Stir 0.5 to 0.7 it
+**Break Wave made no spirals.** Excitability is at its default, where the dish oscillates in
+bulk and overruns the cut ends. Turn it up to about 0.7, press Drop,
+wait for the ring to reach the middle of the dish, then press Break Wave.
+
+**The excitable dish is quiet and red.** That is what excitable means: nothing happens until a
+Drop (or Auto Drop, or Audio Drops) starts a wave. Turn Excitability down for a dish that
 oscillates on its own.
 
 **No Turing pattern.** The wavelength is 0.12 mm: set Dish Width to 10 mm or Detail to 1024,
@@ -434,18 +454,14 @@ when the chemistry could not keep up with Time-lapse.
 
 ## Known limits
 
-- **Break Wave does not make spirals at any setting you can reach.** The dish runs the
-  Oregonator in its oscillatory regime (f = 1.4), where a broken wave's ends hook and the next
-  bulk firing overruns them before they wind up. The harness measures spirals, trigger-wave
-  speeds and the Ru(bpy)₃ light threshold in the excitable regime (f = 2.6), through a hook no
-  control reaches, so those numbers are the model's at that setting, not this dish's. Making
-  the excitable regime reachable is the first job for the next version.
+- **Spirals need Excitability past 0.42 (f 1.78 at the 1× recipe) and a Drop first.** At the
+  default (the 0.1.0 dish)
+  Break Wave makes none: the dish oscillates in bulk and overruns the cut ends.
 - **The plugin is held to the cited models, not to a dish.** Eleven of the twenty absorption
   spectra and a number of rate and diffusion constants are stand-ins, each marked in the
   chemistry notes; the pacemakers, the stirring, the aeration and the Flow residence are models
   with a stated form.
 - **Briggs–Rauscher's period is the mechanism's**, minutes, not a demonstration's seconds.
-- **A fresh BZ dish at Stir 1 needs a Drop to start** (see *If it looks wrong*).
 - **There is a browser demo** at [honeydew-demo.stoatworks-labs.com](https://honeydew-demo.stoatworks-labs.com/).
   It runs the plugin's own code, compiled to WebAssembly, and its own shaders in WebGL2, so it
   behaves as the plugin does; it has no tempo from a host and no audio, and the page lists what
