@@ -22,7 +22,7 @@ MUTANTS=(
 	"source/Shaders.cpp|return rate * vec3( ( q * s.y - s.x * s.y + s.x * ( 1.0 - s.x ) ) / eps,|return rate * vec3( ( q * s.y - s.x * s.y + s.x * ( 1.0 + s.x ) ) / eps,|--oregonator|GLSL: the Oregonator's autocatalysis unbounded, 1.0 - x -> 1.0 + x"
 	"source/Shaders.cpp|float T = exp( -2.302585092994046 * A * depth );|float T = exp( -2.302585092994046 * A + depth );|--beer|GLSL: Beer-Lambert's depth added instead of multiplied, * -> +"
 	"source/Shaders.cpp|I2 -= x;|I2 += x;|--clock|GLSL: the thiosulfate makes iodine instead of taking it, -= -> +="
-	"source/Transport.h|while( wait < lead )|while( wait > lead )|--transport|C++: the beat lead skips every boundary but the first, < -> >"
+	"source/Transport.h|double wait         = ( 1.0 - phase ) * period;|double wait         = ( 1.0 + phase ) * period;|--transport|C++: the wait to the next boundary counted from the wrong end of the bar, 1.0 - phase -> 1.0 + phase"
 	"source/Chemistry.cpp|return -std::log( 1.0 - S0 / ( 2.0 * H0 ) ) / ( ClockRateConstant( H ) * I0 );|return -std::log( 1.0 - S0 / ( 2.0 + H0 ) ) / ( ClockRateConstant( H ) * I0 );|--clock|C++: the closed form the check holds the plugin to, * -> + (a wrong reference is caught too)"
 )
 
@@ -49,7 +49,27 @@ PY
 	printf '\n== mutant: %s\n' "$what"
 	cmake -S "$tree" -B "$tree/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 >/dev/null
 	cmake --build "$tree/build" --target hdtest -j"$(sysctl -n hw.ncpu)" >/dev/null 2>&1
-	if "$tree/build/hdtest" "$check" --size 320x180 >"$WORK/log" 2>&1; then
+	# A mutant can hang (the first transport mutant inverted a while loop's
+	# test and never returned), so the check runs under a limit. A hang is a
+	# failure to pass, and is counted as caught, but it is reported as a hang:
+	# pick a mutant that terminates.
+	"$tree/build/hdtest" "$check" --size 320x180 >"$WORK/log" 2>&1 &
+	pid=$!
+	waited=0
+	hung=0
+	while kill -0 "$pid" 2>/dev/null; do
+		if [[ "$waited" -ge "${MUTANT_LIMIT:-600}" ]]; then
+			kill "$pid" 2>/dev/null || true
+			hung=1
+			break
+		fi
+		sleep 1
+		waited=$(( waited + 1 ))
+	done
+	if [[ "$hung" -eq 1 ]]; then
+		printf '   ok    %s HUNG against the mutant (killed after %s s): a hang is a failure, but prefer a mutant that returns\n' "$check" "$waited"
+		caught=$(( caught + 1 ))
+	elif wait "$pid"; then
 		printf '   FAIL  %s still PASSES -- the check does not cover this code\n' "$check"
 	else
 		printf '   ok    %s fails against the mutant:\n' "$check"
