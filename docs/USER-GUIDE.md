@@ -20,7 +20,8 @@ Flow, pacemakers firing target waves that annihilate where they meet.*
 > two rasters, and holds the plugin to its own literature. A stirred ferroin dish's period, read
 > from the pixels, is 101.19 s against 100.97 s from the three-variable Oregonator integrated in
 > double precision; a trigger wave's speed is 0.1017 mm/s against 0.1008 from the one-dimensional
-> solution of the same equations, at three acid strengths; the iodine clock snaps at 25.25 s
+> solution of the same equations, at three acid strengths (in the excitable setting the harness
+> sets and no control reaches: see Known limits); the iodine clock snaps at 25.25 s
 > against the Harcourt–Esson closed form's 25.01; eleven batch Briggs–Rauscher oscillations
 > average 248.00 s apart against 248.04 from the De Kepper–Epstein mechanism; the Turing pattern's wavelength, read off the
 > state, is 0.122 mm against the Lengyel–Epstein model's 0.1205; every pixel of a uniform dish
@@ -71,7 +72,7 @@ is in millimetres. That is all. Nobody draws the rings:
 | --- | --- |
 | **target rings** spreading from points | a speck of dust (a pacemaker) fires early, and each pulse of oxidised catalyst travels out as a trigger wave |
 | **cusps where rings meet** | two waves annihilate: each leaves a refractory layer behind it that the other cannot cross |
-| **spirals** | a wave with a free end (Break Wave draws a pipette through it) curls round the end for ever |
+| **hooks where a wave is cut** | Break Wave draws a pipette through the waves; the broken ends curl, but in this version's oscillating dish the next wave overruns them before they wind into spirals (see Known limits) |
 | **the whole dish flipping colour at once** | stirred, every cell is at the same point in the oscillation |
 | **a sudden snap to blue-black** | the iodine clock: thiosulfate holds the iodine down until it is spent, then the starch complex forms in a moment |
 | **spots and stripes that stand still** | the CDIMA Turing pattern: an activator that diffuses slowly and an inhibitor that diffuses fast, at a wavelength the chemistry sets |
@@ -91,8 +92,9 @@ filters your clip the way a real dish on a real lightbox would.
 1. Put **SW Honeydew** in a clip slot and trigger it. A red ferroin layer appears; within a few
    seconds (at Time-lapse 30×, a few minutes of chemistry) pale blue rings spread from the
    pacemakers and meet.
-2. Press **Break Wave**. A line through the rings leaves broken ends, and each curls into a
-   spiral.
+2. Press **Break Wave**. A pipette line cuts the rings and the broken ends hook round, until the
+   next wave from the pacemakers overruns them. (Spirals need an excitable layer this version
+   cannot be set to; see Known limits.)
 3. Turn **Stir** to 1: the dish mixes and the whole layer flips red–blue–red together, once every
    101 seconds of chemistry (about 3.4 s at 30×).
 4. Change **Reaction** to *Iodine Clock*. The layer is colourless; it snaps blue-black at 25
@@ -112,8 +114,9 @@ real second. The timescales below are chemical seconds at the 1× recipe.
 
 **Belousov–Zhabotinsky** (the default). Bromate, acid, malonic acid and a catalyst, the
 Field–Körös–Noyes mechanism as the three-variable Oregonator. In a still layer, pacemakers fire
-target waves that travel at about 0.1 mm/s and annihilate where they meet; a Break Wave leaves a
-pair of spirals turning every 85 s; stirred, the dish oscillates as one every 101 s. **Catalyst**
+target waves that travel outward and annihilate where they meet; Break Wave cuts them, and the
+broken ends hook round before the next firing overruns them; stirred, the dish oscillates as one
+every 101 s. **Catalyst**
 chooses the colour pair and the photosensitivity: *Ferroin* is red (reduced) and blue
 (oxidised), the classic; *Ru(bpy)3* is orange and pale green, and light makes bromide in it, so
 a lit region is inhibited and waves stop at its edge (the Over's clip, through Light Coupling);
@@ -136,8 +139,10 @@ waves.
 back; when the thiosulfate is gone the starch snaps the layer **colourless → blue-black** in a
 moment. It is a clock, not an oscillator: at the 1× recipe the snap comes at 25 s, at half the
 peroxide 51 s, at twice 12.5 s. The cycle is **dosing**: a **Drop** is a drop of thiosulfate,
-which clears the colour and starts the clock again (and spreads as a clear disc in a still
-layer). **Clock Sync** sizes every dose so the next snap lands on the beat or the bar.
+which clears the colour and starts the clock again. A Drop at the 1× recipe is small: after the
+snap, iodine keeps forming, and filming saw a 3 mm Batch layer not visibly clear. **Clock Sync**
+sizes every dose itself, so the next snap lands on the beat or the bar, and it clears every
+time.
 
 **CDIMA Turing.** Chlorine dioxide, iodine and malonic acid with starch, as the Lengyel–Epstein
 model: the layer settles into **stationary spots and stripes** at a wavelength the chemistry
@@ -233,8 +238,11 @@ to one colour, and at 1 the dish is a stirred beaker (the BZ oscillates as one, 
 everywhere at once). Stirring also brings in air, so a stirred blue bottle stays blue.
 
 **Time-lapse** (1× to 300×, default 30×). How many chemical seconds pass per real second. Past
-about 300× on a busy reaction the plugin cannot keep up: it runs the chemistry as fast as it can
-(96 steps a frame) and drops the rest rather than bursting, and says so in its log.
+a limit the plugin cannot keep up: it runs the chemistry as fast as it can (96 steps a frame)
+and drops the rest rather than bursting, and says so in its log. Stirring brings the limit down
+a long way: a stirred BZ dish at Detail 256 keeps up only to about 32× (at 60× its stirred
+period reads 192 s, not 101), CDIMA on a 10 mm dish to about 200× at Detail 512 and 150× at
+1024.
 
 **Detail** (*128*, *256*, *512*, *1024* cells across; default *256*). The grid's resolution. The
 grid follows the picture's shape, not its size, so the dish looks the same at any output
@@ -250,14 +258,15 @@ starts a wave), thiosulfate (the clock), air (the dye family), permanganate (the
 
 **Drop Position** (*Random*, *Centre*; the Over adds *Brightest*: where the clip is brightest).
 
-**Break Wave** (a button). A pipette drawn through the dish: it breaks every wave it crosses,
-and each broken end curls into a spiral. BZ only.
+**Break Wave** (a button). A pipette drawn through the dish: it breaks every wave it crosses.
+In this version the broken ends hook and are overrun by the next firing rather than winding
+into spirals (see Known limits). BZ only.
 
 **Shake** (a button). Shakes the dish: a burst of stirring, and air into the dye family. The
 traffic light, the blue bottle and the valentine go back to their oxidised colour.
 
-**Auto Drop** (off; 1 to 60 a minute, default off). Drops (or, in the dye family, shakes) by
-itself.
+**Auto Drop** (off; 1 to 60 a minute, default off). The reaction's own Drop, by itself (in the
+dye family that is a drop of air-saturated water, not a Shake).
 
 **Audio** (Resolume's FFT input). **Audio Drops** and **Audio Shakes** (off by default): a drop or
 a shake on every onset in the sound. The first frame after a clip trigger fires nothing, even if
@@ -338,9 +347,11 @@ the transition is seen. Clock Sync does nothing to BZ, Briggs–Rauscher or CDIM
   a Batch chameleon grows murkier with every dose. Press Reset for a fresh one.
 - **Shake and Drop on the beat.** Audio Shakes on the blue bottle, Audio Drops on the iodine
   clock or the chameleon, or Clock Sync to put the transition itself on the bar.
-- **The Over wants a dark clip with bright shapes** for the photosensitive chemistries, so the
-  waves have somewhere to run; a bright clip through Ru(bpy)₃ BZ is a dish that never fires.
-  For plain filtering (the dish tinting your footage) any clip works; set Light Coupling to 0.
+- **Light Coupling wants a bright clip.** The dish is a filter, so waves running through a
+  clip's black parts cannot be seen at all, and the brightest parts are inhibited. Filming
+  found nothing visible on dark clips with bright shapes; on a bright clip, fading Light
+  Coupling from 0 up shows the light taking hold. For plain filtering (the dish tinting your
+  footage) any clip works; set Light Coupling to 0.
 - **Depth is saturation.** Thin layers (0.5 mm) are pale and fast to read; 7 mm is the beaker.
 - **The Petri Dish vessel shows the lightbox** round the dish: on the source that is a white (or
   LED) disc on black, which layers well with Add or Alpha.
@@ -375,7 +386,7 @@ oscillates on its own.
 give it twenty chemical minutes, and keep Indicator above 0 (no starch, no pattern).
 
 **The blue bottle stays blue.** It is stirred (Stir brings air in), or Flow is feeding oxygen:
-set Stir to 0 and let it stand.
+set Stir to 0, **Reactor** to *Batch*, and let it stand. The valentine is the same.
 
 **The valentine never goes blue.** It only is before the first fade; after that it is pink and
 colourless. Press Reset for a fresh blue dish.
@@ -423,12 +434,23 @@ when the chemistry could not keep up with Time-lapse.
 
 ## Known limits
 
+- **Break Wave does not make spirals at any setting you can reach.** The dish runs the
+  Oregonator in its oscillatory regime (f = 1.4), where a broken wave's ends hook and the next
+  bulk firing overruns them before they wind up. The harness measures spirals, trigger-wave
+  speeds and the Ru(bpy)₃ light threshold in the excitable regime (f = 2.6), through a hook no
+  control reaches, so those numbers are the model's at that setting, not this dish's. Making
+  the excitable regime reachable is the first job for the next version.
 - **The plugin is held to the cited models, not to a dish.** Eleven of the twenty absorption
   spectra and a number of rate and diffusion constants are stand-ins, each marked in the
   chemistry notes; the pacemakers, the stirring, the aeration and the Flow residence are models
   with a stated form.
 - **Briggs–Rauscher's period is the mechanism's**, minutes, not a demonstration's seconds.
 - **A fresh BZ dish at Stir 1 needs a Drop to start** (see *If it looks wrong*).
+- **There is a browser demo** at [honeydew-demo.stoatworks-labs.com](https://honeydew-demo.stoatworks-labs.com/).
+  It runs the plugin's own code, compiled to WebAssembly, and its own shaders in WebGL2, so it
+  behaves as the plugin does; it has no tempo from a host and no audio, and the page lists what
+  else differs.
+- **Briggs–Rauscher in a Petri Dish** shows its 32-column CPU grid as a staircase at the rim.
 - **Past 96 chemistry steps a frame** (Time-lapse 300× on BZ at Detail 1024) the chemistry runs
   slower than Time-lapse says, counted and logged, never banked.
 - **Wave speed is 18% faster at 0.2 mm cells** (Detail 256 on a 60 mm dish) than at 0.1 mm:

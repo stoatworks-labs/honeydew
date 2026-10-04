@@ -557,6 +557,44 @@ port of it**:
   headless SwiftShader crawls, so cdpshot runs Chrome through a wrapper adding
   `--use-gl=angle --use-angle=metal`.
 
+## What filming the release video found (2026-10-04)
+
+The take is `stoatworks-backend/video/projects/honeydew/` (`hdtest --pipe` and
+`--over --pipe` through cue sheets, Resolume's demo clips under the Over). It
+found these, recorded here rather than worked around:
+
+1. **Break Wave makes no spirals at any setting a control reaches.** The shipped
+   Oregonator runs at f = 1.4 (`Chemistry.h`, bulk-oscillatory): the pipette leaves
+   a flat band whose ends hook and are overrun by the next bulk firing (tried 30×,
+   45× and 60× for ten seconds each). `--spiral`, `--fieldnoyes` and `--photo` set
+   f = 2.6 through the harness hook, so their numbers are the excitable model's,
+   not the shipped dish's. README, guide and site no longer promise spirals.
+   **Fix for 0.1.1**: make the excitable regime reachable (an Excitability control
+   for f, or a recipe that maps to it) and point `--spiral` at a reachable setting.
+2. **The substep cap bites far below 300× when stirred**: BZ at Stir 1, Detail 256,
+   above about 32× (at 45× a frame covers 0.53 of 0.75 chemical s; at 60× the
+   stirred period reads 192 s); CDIMA on a 10 mm dish above ~198× at Detail 512 and
+   ~146× at 1024. Counted and logged, never banked; the docs now say where.
+3. **Auto Drop always drops** (`autoRate → pendingDrops`), in the dye family too;
+   it never shakes. The guide said otherwise and is corrected.
+4. **Light Coupling shows nothing on dark clips with bright shapes** (Trinity,
+   NeonRoom, Galactucity, Enter5, the fog clip): the dish is a filter, so waves in
+   the dark parts are invisible and the lit parts are inhibited. It reads on a
+   bright clip, faded from 0 up. The guide's tip is corrected.
+5. **A 1× iodine-clock Drop after the snap did not visibly clear a 3 mm Batch
+   layer** (20 mm drops 0.5–8 s after it): iodine keeps forming. Not proven a
+   defect (a drop at the instant of the snap was not tried); Clock Sync's own
+   doses clear it every time.
+6. **In Flow the blue bottle and the valentine never go colourless**; their
+   demonstrations need Batch, and the valentine's one-way blue takes ~20 s even
+   there, so it is not in the film.
+7. **Briggs–Rauscher in a Petri Dish** shows the 32-column CPU grid as a staircase
+   at the rim (cosmetic).
+
+`runPipe` never calls `SetBeatInfo`, so Clock Sync in a `--pipe` take runs on the
+plugin's own fallback transport (120 BPM from the take's first frame); the
+video's caption says so.
+
 ## Shape of the code
 
 - `source/Controls.*` — the parameter ids, names, host order (About last; the

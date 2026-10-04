@@ -11,7 +11,8 @@
 > literature: `hdtest --oregonator` reads a stirred ferroin dish's period from the
 > pixels and gets **101.19 s against 100.97 s** from the three-variable Oregonator in
 > double; `--fieldnoyes` reads a trigger wave's speed and gets **0.1017 mm/s against
-> 0.1008** from the 1-D double solution of the same PDE at three acids; `--clock` reads
+> 0.1008** from the 1-D double solution of the same PDE at three acids (in the excitable
+> setting f = 2.6, which the harness sets and no control reaches: see Status); `--clock` reads
 > the iodine clock's snap and gets **25.25 s against the Harcourt–Esson closed form's
 > 25.01**; `--briggs` reads eleven batch Briggs–Rauscher oscillations, whose gaps lengthen
 > from about 130 s to 640 s as the batch runs down, and gets a **mean period of 248.00 s
@@ -88,9 +89,12 @@ Eight reactions (the **Reaction** option), and what falls out of each:
    Oregonator, integrated per cell with a stiff second-order step, with the constants
    computed from the recipe. **Ferroin** (red ⇄ blue), **Ru(bpy)₃** (orange ⇄ pale
    green, and photosensitive) or **Cerium** (colourless ⇄ yellow). Target waves from
-   pacemakers; trigger waves whose speed rises with acid; **spirals** where a wave is
-   broken (Break Wave); waves that annihilate where they meet; and, stirred, the whole
-   dish flipping red–blue–red in unison. Under Ru(bpy)₃ the Over's clip is light that
+   pacemakers; waves that annihilate where they meet; and, stirred, the whole dish
+   flipping red–blue–red in unison. Break Wave cuts the waves, but **this version's dish
+   does not wind spirals**: it runs in the Oregonator's oscillatory regime (f = 1.4), where
+   the broken ends hook and the next firing overruns them. Spirals and trigger waves are
+   measured by the harness in the excitable regime (f = 2.6), which no control reaches in
+   0.1.0 (see Status). Under Ru(bpy)₃ the Over's clip is light that
    makes bromide: a lit region is inhibited and waves stop at its edge.
 2. **Briggs–Rauscher.** Iodate, hydrogen peroxide, malonic acid, Mn²⁺, acid and starch,
    stirred: **colourless → amber → blue-black** and round again; in Batch it runs down
@@ -148,8 +152,9 @@ a red card, a dark band and a blue sign through it](docs/over.png)
   1024 cells across).
 - **Drops:** Drop (the reaction's own dose: catalyst, thiosulfate, air, permanganate),
   Drop Size (1–20 mm), Drop Position (*Random*, *Centre*; the Over adds *Brightest*:
-  where the clip is brightest), Break Wave (a pipette drawn through the waves: spirals),
-  Shake (air into the dish, with a burst of stirring), Auto Drop (0 or 1–60 a minute),
+  where the clip is brightest), Break Wave (a pipette drawn through the waves; see
+  Status on spirals), Shake (air into the dish, with a burst of stirring), Auto Drop (0 or
+  1–60 a minute: the reaction's own drop, by itself),
   Audio (Resolume's FFT buffer), Audio Drops, Audio Shakes (a drop or a shake per onset).
 - **Clock:** Clock Sync (*Off*, *Beat*, *Bar*): the clock's thiosulfate, the blue-bottle
   family's air and the chameleon's permanganate are sized or timed so the snap, the fade
@@ -178,8 +183,8 @@ The source is opaque (the lightbox is the picture); the Over keeps the clip's al
 
 **v0.1.0, 4 October 2026, and honestly early.** There is a
 [user guide](https://stoatworks-labs.com/software/honeydew/guide/)
-([PDF](docs/USER-GUIDE.pdf)) and a [project page](https://stoatworks-labs.com/software/honeydew/);
-no OpenFX port.
+([PDF](docs/USER-GUIDE.pdf)), a [project page](https://stoatworks-labs.com/software/honeydew/)
+and a [browser demo](https://honeydew-demo.stoatworks-labs.com/) (below); no OpenFX port.
 
 It has **never been loaded into Resolume on macOS**. `oxbow probe` reads the bundles
 as a host does (`SW Honeydew` / `HD01` / source, `SW Honeydew Over` / `HD02` / effect)
@@ -218,9 +223,9 @@ numbers are the same at both rasters, to the digit printed):
 | Beer–Lambert | a uniform dish's pixels within 1.9×10⁻⁷ of the double integral at 1.5 mm and 1.3×10⁻⁷ at 3 mm (the per-channel square would be off by 0.315); an empty dish returns the lightbox within 1.5×10⁻⁷ and the Over returns its clip to the float |
 | the Over | Mix 0 returns the clip bit for bit; with Light Coupling 0, 80 s of a Ru-BZ wave on the card and on black agree in every state float (0 differ) |
 | Oregonator | stirred ferroin: period 101.19 s against 100.97 in double (bound 1.39 from the step's own error and a frame); oxidised 10.0% of the time against 9.9%; the Tyson–Fife two-variable reduction would be 23% off at this recipe, and is not used |
-| trigger waves | 0.0566, 0.1017, 0.1728 mm/s at ½×, 1×, 2× acid against the 1-D double solution's 0.0564, 0.1008, 0.1718 (each inside its Richardson bound); acid exponent 0.80, and 0.1017 against Field & Noyes 1974's law's 0.1200: a pushed front at these constants, reported |
-| spirals | after a Break Wave, 159 of 160 samples hold exactly one +1 and one −1 phase singularity; the arms sweep 8 of 8 probes every 85.3 s |
-| light | Ru(bpy)₃: a 1.6 mm lit band at full light stops a wave, below the model's own threshold (φ 0.0014–0.0019) it crosses; ferroin ignores the light |
+| trigger waves (f = 2.6) | 0.0566, 0.1017, 0.1728 mm/s at ½×, 1×, 2× acid against the 1-D double solution's 0.0564, 0.1008, 0.1718 (each inside its Richardson bound); acid exponent 0.80, and 0.1017 against Field & Noyes 1974's law's 0.1200: a pushed front at these constants, reported |
+| spirals (f = 2.6) | after a Break Wave, 159 of 160 samples hold exactly one +1 and one −1 phase singularity; the arms sweep 8 of 8 probes every 85.3 s |
+| light (f = 2.6) | Ru(bpy)₃: a 1.6 mm lit band at full light stops a wave, below the model's own threshold (φ 0.0014–0.0019) it crosses; ferroin ignores the light |
 | the clock | Batch: snaps at 50.75, 25.25, 12.50 s at ½×, 1×, 2× H₂O₂ against the closed form's 50.66, 25.01, 12.42 (bound a frame + the step); Flow: 46.75, 24.25, 12.25 against 46.70, 24.00, 12.17 |
 | Clock Sync | Bar at 120 BPM: the clock's 6 snaps within 0.017 s of a bar (bound 0.037), the blue bottle's 15 fades within 0.017 (0.050), the chameleon's 3 green peaks on the bar; at 97 BPM 0.018, 0.046, 0.004 s |
 | Briggs–Rauscher | Batch: 11 peaks, mean period 248.00 s against 248.04 in double (the gaps lengthen from about 130 s to 640 s as the batch runs down), the last at 2505 s (reference 2504); Flow (residence 800 s): 20 peaks, 140.33 against 140.28; from pixels 11 and 19 cycles colourless → amber → blue-black, 0 out of order |
@@ -254,6 +259,17 @@ raster's: the raster pays only for the composite.
 
 What is **not** verified, and is the honest limit of this build:
 
+- **Break Wave does not make spirals at any setting a user can reach.** The shipped dish
+  runs the Oregonator at f = 1.4, its oscillatory regime, where a broken wave's ends hook
+  and the next bulk firing overruns them before they wind up (filming the release video
+  tried 30×, 45× and 60× for ten seconds each). `--spiral`, `--fieldnoyes` and `--photo`
+  set f = 2.6, the excitable regime, through a harness hook no control reaches, so their
+  spirals, wave speeds and light threshold are the model's at that setting, not the
+  shipped dish's. Making the excitable regime reachable is the first job for 0.1.1.
+- **The substep cap bites well below 300× when stirred**: BZ at Stir 1 and Detail 256
+  runs slow above about 32× (at 60× the stirred period reads 192 s, not 101), and CDIMA on
+  a 10 mm dish above about 200× at Detail 512 and 150× at 1024. It is counted and logged,
+  never banked, but the chemistry then runs slower than Time-lapse says.
 - **A fresh BZ dish at Stir 1 never starts on its own**: the whole-vessel mixing holds the
   uniform dish at the Oregonator's unstable rest state, and only a Drop tips it (Stir 0.5–0.7
   oscillates unaided). Found by the browser demo; `--oregonator` starts from a perturbed
@@ -266,6 +282,10 @@ What is **not** verified, and is the honest limit of this build:
   in CHEMISTRY.md); the pacemakers, the stirring, the aeration, the Flow residence and
   the drop's mixing are closures with a stated form that nothing measures.
 - **Chemoconvection is not built** (above).
+- **In Flow the blue bottle and the valentine never go colourless** (the feed keeps
+  oxygen in): their demonstrations need Batch.
+- **Briggs–Rauscher in a Petri Dish** shows its 32-column CPU grid as a staircase at the
+  rim.
 - **Briggs–Rauscher is stirred only**, on the CPU in double; its period is the
   mechanism's at the recipe (minutes), not a demonstration's seconds.
 - **The chameleon has no blue**: permanganate plus manganate reads grey through these
@@ -274,6 +294,18 @@ What is **not** verified, and is the honest limit of this build:
   chemistry runs slower than Time-lapse says, counted and logged, never banked.
 - **Wave speed is 18% faster at 0.2 mm cells** than at 0.1 mm (Detail 256 on a 60 mm
   dish): the front is thinner than a cell, and the 1-D double line does the same.
+
+## Browser demo
+
+**<https://honeydew-demo.stoatworks-labs.com/>** — both plugins in a web page, running the
+plugin's **own C++ compiled to WebAssembly** (`Honeydew.cpp` and everything it calls, with
+the FFGL SDK's classes; `demo/wasm/glue.cpp` plays the host) and its **own GLSL** under
+WebGL2: the page refuses any shader text that is not one of the programs the plugin
+assembles. Briggs–Rauscher's CPU engine runs too, single-threaded. `demo/tools/check_shaders.py`
+(run by `tools/verify.sh` and before every deploy) proves the shaders are the shipped ones
+and that the `.wasm` was built from the current sources. It has no transport and no audio;
+the page lists what else differs. Measured on this Mac against the plugin: a stirred dish's
+period 100.61 s (`--oregonator` 101.19), the iodine clock's snap 25.08 s (closed form 25.01).
 
 ## Build
 
