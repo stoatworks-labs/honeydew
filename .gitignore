@@ -11,3 +11,4 @@
 /.vscode/
 *.xcodeproj/xcuserdata/
 /build-*/
+/build-verify/
