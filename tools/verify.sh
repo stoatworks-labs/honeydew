@@ -54,6 +54,21 @@ step "Shaders"
 tools/glslc.sh || fail "a shader does not compile"
 
 #---------------------------------------------------------------------------
+step "Demo: the browser copy of the shaders, and the .wasm's sources"
+#---------------------------------------------------------------------------
+# demo/ runs the plugin's own C++ as committed WebAssembly and carries its own
+# copy of the GLSL; both drift quietly. This compares the GLSL character for
+# character and checks the .wasm's recorded inputs still hash as they did when
+# demo/tools/build-wasm.sh built it (rebuilding needs emscripten). deploy.yml
+# runs the same check before every deploy, so a source/ change without a
+# rebuilt .wasm goes red there too.
+if [[ -f demo/tools/check_shaders.py ]]; then
+	python3 demo/tools/check_shaders.py || fail "the demo's copies have drifted from the plugin's"
+else
+	echo "   skipped: no demo/"
+fi
+
+#---------------------------------------------------------------------------
 step "Submodule"
 #---------------------------------------------------------------------------
 if [[ ! -f external/ffgl/CMakeLists.txt ]]; then

@@ -21,8 +21,8 @@ Flow, pacemakers firing target waves that annihilate where they meet.*
 > from the pixels, is 101.19 s against 100.97 s from the three-variable Oregonator integrated in
 > double precision; a trigger wave's speed is 0.1017 mm/s against 0.1008 from the one-dimensional
 > solution of the same equations, at three acid strengths; the iodine clock snaps at 25.25 s
-> against the Harcourt–Esson closed form's 25.01; the Briggs–Rauscher period is 248.00 s against
-> 248.04 from the De Kepper–Epstein mechanism; the Turing pattern's wavelength, read off the
+> against the Harcourt–Esson closed form's 25.01; eleven batch Briggs–Rauscher oscillations
+> average 248.00 s apart against 248.04 from the De Kepper–Epstein mechanism; the Turing pattern's wavelength, read off the
 > state, is 0.122 mm against the Lengyel–Epstein model's 0.1205; every pixel of a uniform dish
 > is within 2×10⁻⁷ of a double-precision Beer–Lambert integral through the CIE 1931 observer.
 > Twenty deliberately wrong models are each shown to fail their check, one-character mutations
@@ -124,9 +124,11 @@ chemistry and the dish goes quiet; Flow (the default) feeds it for ever.
 **Briggs–Rauscher.** Iodate, hydrogen peroxide, malonic acid, manganese, acid and starch,
 stirred: **colourless → amber → blue-black** and round again. The plugin runs the De
 Kepper–Epstein mechanism, ten species, on the CPU in double precision, and **its period is the
-mechanism's: 248 s in Batch, 140 s in Flow**, not the few seconds of a classroom beaker, so put
-**Time-lapse** at 100× or more to see it cycle. In Batch it runs down after eleven cycles
-(about 40 chemical minutes) and stays blue-black; Flow keeps it going. It is **stirred only** in
+mechanism's, minutes**: in Batch the first cycle takes about two chemical minutes and each one
+after takes longer, to about ten, as the reagents run down; in Flow a steady 140 s. That is
+not the few seconds of a classroom beaker, so put **Time-lapse** at 100× or more to see it
+cycle. In Batch it runs down after eleven cycles (about 40 chemical minutes) and stays
+blue-black; Flow keeps it going. It is **stirred only** in
 this version: Stir, Drop, Break Wave and the vessel's shape do nothing to it, and it has no
 waves.
 
@@ -364,6 +366,11 @@ Drop to start a wave or a cycle.
 
 **The BZ dish went quiet.** Batch: the malonic acid is spent. Reset, or switch to Flow.
 
+**A fresh BZ dish at Stir 1 never starts.** Stirred hard, the whole dish is held at one
+composition, and a perfectly uniform fresh dish sits at the Oregonator's resting state, which
+is unstable but has nothing to tip it. Press **Drop** and it starts; at Stir 0.5 to 0.7 it
+oscillates on its own.
+
 **No Turing pattern.** The wavelength is 0.12 mm: set Dish Width to 10 mm or Detail to 1024,
 give it twenty chemical minutes, and keep Indicator above 0 (no starch, no pattern).
 
@@ -421,6 +428,7 @@ when the chemistry could not keep up with Time-lapse.
   chemistry notes; the pacemakers, the stirring, the aeration and the Flow residence are models
   with a stated form.
 - **Briggs–Rauscher's period is the mechanism's**, minutes, not a demonstration's seconds.
+- **A fresh BZ dish at Stir 1 needs a Drop to start** (see *If it looks wrong*).
 - **Past 96 chemistry steps a frame** (Time-lapse 300× on BZ at Detail 1024) the chemistry runs
   slower than Time-lapse says, counted and logged, never banked.
 - **Wave speed is 18% faster at 0.2 mm cells** (Detail 256 on a 60 mm dish) than at 0.1 mm:

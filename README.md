@@ -13,8 +13,9 @@
 > double; `--fieldnoyes` reads a trigger wave's speed and gets **0.1017 mm/s against
 > 0.1008** from the 1-D double solution of the same PDE at three acids; `--clock` reads
 > the iodine clock's snap and gets **25.25 s against the Harcourt–Esson closed form's
-> 25.01**; `--briggs` reads the Briggs–Rauscher's **248.00 s period against 248.04** from
-> the De Kepper–Epstein mechanism in double; `--turing` reads the CDIMA pattern's
+> 25.01**; `--briggs` reads eleven batch Briggs–Rauscher oscillations, whose gaps lengthen
+> from about 130 s to 640 s as the batch runs down, and gets a **mean period of 248.00 s
+> against 248.04** from the De Kepper–Epstein mechanism in double; `--turing` reads the CDIMA pattern's
 > wavelength off an FFT of the state and gets **0.1220 mm against the Lengyel–Epstein
 > model's 0.1205**. The colour is never a palette: `--beer` holds every pixel of a
 > uniform dish to a double-precision Beer–Lambert integral through the CIE 1931 observer
@@ -222,7 +223,7 @@ numbers are the same at both rasters, to the digit printed):
 | light | Ru(bpy)₃: a 1.6 mm lit band at full light stops a wave, below the model's own threshold (φ 0.0014–0.0019) it crosses; ferroin ignores the light |
 | the clock | Batch: snaps at 50.75, 25.25, 12.50 s at ½×, 1×, 2× H₂O₂ against the closed form's 50.66, 25.01, 12.42 (bound a frame + the step); Flow: 46.75, 24.25, 12.25 against 46.70, 24.00, 12.17 |
 | Clock Sync | Bar at 120 BPM: the clock's 6 snaps within 0.017 s of a bar (bound 0.037), the blue bottle's 15 fades within 0.017 (0.050), the chameleon's 3 green peaks on the bar; at 97 BPM 0.018, 0.046, 0.004 s |
-| Briggs–Rauscher | Batch: 11 peaks, period 248.00 s against 248.04 in double, the last at 2505 s (reference 2504); Flow (residence 800 s): 20 peaks, 140.33 against 140.28; from pixels 11 and 19 cycles colourless → amber → blue-black, 0 out of order |
+| Briggs–Rauscher | Batch: 11 peaks, mean period 248.00 s against 248.04 in double (the gaps lengthen from about 130 s to 640 s as the batch runs down), the last at 2505 s (reference 2504); Flow (residence 800 s): 20 peaks, 140.33 against 140.28; from pixels 11 and 19 cycles colourless → amber → blue-black, 0 out of order |
 | traffic light | green → red → yellow after a Shake, back to green on the next, 2 cycles; red at 258.5 s (reference 260.5, bound 5.1), yellow at 687.0 (683.0, bound 7.3); the green lasts 258.5 s, 584.5 with twice the air, 89.5 with twice the glucose, 46.0 with twice the base; Batch: 413.5, 426.0, 439.0 s on successive doses; the fresh dish's hue 213 (blue) at ¼× base, 134 (green) at 1×, 69 (yellow) at 4× |
 | blue bottle | blue first, 2 fades on 2 doses of air, the first at 814.5 s (reference 809.0, bound 8.0), 436.5 with half the air; the fade's pixel hue 193 |
 | valentine | blue → purple → colourless → purple → colourless; blue first, then pink; resazurin 3×10⁻¹⁰ of the dye after the first fade and never above it; 0 blue readings after it |
@@ -253,6 +254,10 @@ raster's: the raster pays only for the composite.
 
 What is **not** verified, and is the honest limit of this build:
 
+- **A fresh BZ dish at Stir 1 never starts on its own**: the whole-vessel mixing holds the
+  uniform dish at the Oregonator's unstable rest state, and only a Drop tips it (Stir 0.5–0.7
+  oscillates unaided). Found by the browser demo; `--oregonator` starts from a perturbed
+  state, so verify never meets it.
 - **Never in Resolume on macOS**, and on Windows only on software rendering with no
   sound device: the clock unit on macOS, the transport's bar phase, the FFT bins and
   real audio are untested in a host.
