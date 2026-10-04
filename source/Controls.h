@@ -72,8 +72,9 @@ enum ParamId : unsigned int
 	PT_MIX,           ///< Over only
 	/// Appended in 0.1.1 (FFGL's ABI is by index: new controls go after the
 	/// last existing one, with the About block still last). BZ only: the
-	/// Oregonator's stoichiometric factor f, oscillatory below the Hopf point
-	/// and excitable past it (AGENTS.md). Shown in the Reaction group.
+	/// Oregonator's stoichiometric factor f, oscillatory at low f and
+	/// excitable past the model's own boundary (f 1.78 at the 1x recipe,
+	/// chem::BZHopfF; AGENTS.md). Shown in the Reaction group.
 	PT_EXCITABILITY,
 
 	// -- The Stoatworks About block: a text line, then one button per link.
@@ -179,7 +180,8 @@ float ParamFromTimelapse( double x );
 double DropSizeFromParam( float v );
 float ParamFromDropSize( double mm );
 /// Excitability: the Oregonator's f, 1 to 4 (geometric). 1.4 (the default)
-/// oscillates in bulk; past the Hopf point 1 + sqrt 2 = 2.414 the rest state
+/// oscillates in bulk; past the model's own boundary (1.78 at the 1x recipe,
+/// slider 0.42; the two-variable textbook value is 1 + sqrt 2) the rest state
 /// is stable and excitable, where a broken wave winds a spiral.
 double ExcitabilityFromParam( float v );
 float ParamFromExcitability( double f );

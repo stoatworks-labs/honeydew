@@ -361,6 +361,18 @@ EMSCRIPTEN_KEEPALIVE double hd_mean( Instance* instance, int which, int channel 
 	return which == 0 ? a[ channel ] : b[ channel ];
 }
 
+/// Whether the Oregonator oscillates at the sliders' recipe and this f (the
+/// Excitability read-out's "oscillating" / "excitable": Chemistry.cpp's own
+/// test, two catalyst peaks in 200 s of the ODE), and the f where it stops.
+EMSCRIPTEN_KEEPALIVE int hd_bz_oscillates( Instance* instance, float f )
+{
+	return chem::BZOscillates( instance->plugin.CurrentRecipe(), f ) ? 1 : 0;
+}
+EMSCRIPTEN_KEEPALIVE double hd_bz_hopf( Instance* instance )
+{
+	return chem::BZHopfF( instance->plugin.CurrentRecipe() );
+}
+
 /// The recipe at the sliders, in mol/L: 0 oxidant, 1 acid or base, 2
 /// reductant, 3 indicator (Chemistry.h's Recipe, by CurrentRecipe()).
 EMSCRIPTEN_KEEPALIVE double hd_recipe( Instance* instance, int which )

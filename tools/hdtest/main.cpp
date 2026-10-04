@@ -1583,10 +1583,12 @@ int runOverCheck( const Perturb& perturb )
 // BZ helpers: a still dish with no pacemakers, the three-variable model's
 // one-dimensional double reference, and the phase around a point.
 //===========================================================================
-/// The excitable setting the wave checks run at: f = 2.6, just past the Hopf
-/// point at the 1x recipe (1 + sqrt 2 = 2.414), as the EXCITABILITY CONTROL
-/// gives it -- the float the host would send, converted by the plugin's own
-/// mapping, so the references and the plugin use the same f to the bit.
+/// The excitable setting the wave checks run at: f = 2.6, well past the
+/// model's own oscillation boundary at the 1x recipe (1.78, chem::BZHopfF;
+/// the two-variable textbook 1 + sqrt 2 is not this model's), as the
+/// EXCITABILITY CONTROL gives it -- the float the host would send, converted
+/// by the plugin's own mapping, so the references and the plugin use the same
+/// f to the bit.
 const float kExcitableParam = ParamFromExcitability( 2.6 );
 const double kFWave         = ExcitabilityFromParam( kExcitableParam );
 
@@ -1941,7 +1943,7 @@ double referenceSpeed( double acidMultiplier, double fWave, double dtScale, doub
 int runFieldNoyes( const Perturb& perturb )
 {
 	std::printf( "\n=== fieldnoyes: a plane trigger wave's speed against the 1-D double solution at three acids; the acid exponent and Field & Noyes 1974, reported\n" );
-	const double fWave = kFWave;//excitable: just past the Hopf point, through the control
+	const double fWave = kFWave;//excitable, through the control
 	const chem::Recipe recipe = chem::BaseRecipe( Reaction::BZ );
 	const chem::BZModel m     = chem::MakeBZ( recipe, fWave );
 	struct Acid
@@ -2375,9 +2377,19 @@ UserSpiral userSpiral( const Raster& raster, float excitability, bool pressBar )
 
 int runExcitable( const Perturb& perturb )
 {
-	std::printf( "\n=== excitable: from the defaults, Excitability past the Hopf point, a Drop and the Break Wave button wind a spiral pair that persists; at the default Excitability the same press leaves none\n" );
-	//A slider position a user reaches: 0.7, f = 4^0.7 = 2.64 (the Hopf point is at 0.636).
+	std::printf( "\n=== excitable: from the defaults, Excitability in the excitable regime, a Drop and the Break Wave button wind a spiral pair that persists; at the default Excitability the same press leaves none\n" );
+	//A slider position a user reaches: 0.7, f = 4^0.7 = 2.64. The model's own
+	//boundary at the 1x recipe is printed (1.78: slider 0.42), and the
+	//two-variable textbook value beside it.
 	const float reachable = 0.7f;
+	{
+		const chem::Recipe recipe = chem::BaseRecipe( Reaction::BZ );
+		const double hopf         = chem::BZHopfF( recipe );
+		chem::Recipe twice        = recipe;
+		twice.acidBase *= 2.0;
+		Note( fmt( "the three-variable model stops oscillating at f %.2f at the 1x recipe (slider %.2f; the two-variable textbook 1 + sqrt 2 = 2.41 is not this model's), at f %.2f with twice the acid; the default f %.2f oscillates, the check's %.2f does not",
+		           hopf, ParamFromExcitability( hopf ), chem::BZHopfF( twice ), chem::kOregonator.f, ExcitabilityFromParam( reachable ) ) );
+	}
 	for( const Raster& raster : kRasters )
 	{
 		const UserSpiral e = userSpiral( raster, reachable, !perturb.excitableNoBar );

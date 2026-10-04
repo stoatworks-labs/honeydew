@@ -61,16 +61,28 @@ SWEEP = {
     "Reductant": ("0.2", "0.8", [], []),
     "Indicator": ("0.2", "0.8", [], []),
     "Vessel": ("0", "1", [], []),
-    "Dish Width": ("0.2", "0.8", [], []),
+    # Dish Width is millimetres per picture: a 4 mm drop in an excitable
+    # (quiet) dish is a fifth of a 20 mm dish and a fiftieth of a 183 mm one,
+    # 15 chemical seconds on (Time-lapse 0.3 is 5.5x). The bare BZ dish went
+    # dead here in 0.1.1: its fresh kick fires the whole dish together, and
+    # the 0.1.0 sweep had been reading the seed noise's spatial structure
+    # (0.09 of a level).
+    "Dish Width": ("0.2", "0.8", ["Excitability=0.7", "Drop=1", "Drop Position=1", "Time-lapse=0.3"], []),
     "Depth": ("0.2", "0.8", [], []),
     "Stir": ("0", "1", [LATER], []),
     "Time-lapse": ("0.2", "0.9", [], []),
     "Detail": ("0", "3", [LATER], []),
-    # A 20 mm drop in a 28 mm dish: the wave covers the picture, on the Over's
-    # dark card too.
-    "Drop": ("0", "1", ["Drop Position=1", "Drop Size=1", "Dish Width=0.3", LATER], []),
-    "Drop Size": ("0", "1", ["Drop=1", "Drop Position=1", "Dish Width=0.3", LATER], []),
-    "Drop Position": ("0", "1", ["Drop=1", "Drop Size=1", "Dish Width=0.3", LATER], []),
+    # A 20 mm drop in a 28 mm EXCITABLE dish (Excitability 0.7: quiet until
+    # the drop, so its disc is the only thing in the picture), 15 chemical
+    # seconds on (Time-lapse 0.3), while the disc is still inside the dish:
+    # an excitable dish returns to rest once the ring has left, and a render
+    # that ends after that reads "identical" (the first 0.1.1 sweep, 256 s
+    # on); on the Over's dark card a thin ring in a 60 mm dish moved 0.02 of a
+    # level, a 20 mm disc in a 28 mm one moves it. At the default f the dish's
+    # own bulk firing overruns the ring and the Over's Drop Position read 0.049.
+    "Drop": ("0", "1", ["Excitability=0.7", "Drop Position=1", "Drop Size=1", "Dish Width=0.3", "Time-lapse=0.3"], []),
+    "Drop Size": ("0", "1", ["Excitability=0.7", "Drop=1", "Drop Position=1", "Dish Width=0.3", "Time-lapse=0.3"], []),
+    "Drop Position": ("0", "1", ["Excitability=0.7", "Drop=1", "Drop Size=1", "Dish Width=0.3", "Time-lapse=0.3"], []),
     "Break Wave": ("0@100", "1@100", ["Drop=1", "Drop Position=1", "Drop Size=1", LATER], []),
     "Shake": ("0", "1", ["Reaction=5"], []),
     "Auto Drop": ("0", "1", ["Drop Position=1"], []),

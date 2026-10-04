@@ -114,6 +114,15 @@ void OregonatorRhs( const BZModel& m, double phi, const double* xyz, double* d )
 /// oscillate): the scale on which the picture shows the catalyst oxidised.
 /// Integrated in double and cached by (eps, eps', q, f).
 double BZPeakZ( const BZModel& m );
+/// Whether the three-variable model oscillates at this recipe and f (at
+/// least two catalyst peaks in 200 s from a 1% kick): the regime the
+/// Excitability control is in. The textbook boundary f = 1 + sqrt 2 is the
+/// two-variable model's with q -> 0; this model's at the 1x recipe is 1.78,
+/// found by bisection (BZHopfF), and it moves with the acid.
+bool BZOscillates( const Recipe& recipe, double f );
+/// The f above which the model stops oscillating at this recipe (bisection
+/// between 1 and 4 on BZOscillates; 1 if it never does, 4 if it always does).
+double BZHopfF( const Recipe& recipe );
 /// The rest state of the three-variable model (x, y, z).
 void BZRestState( const BZModel& m, double xyz[ 3 ] );
 

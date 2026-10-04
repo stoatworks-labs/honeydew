@@ -171,6 +171,26 @@ void BZRestState( const BZModel& m, double xyz[ 3 ] )
 	xyz[ 2 ]        = x;
 }
 
+bool BZOscillates( const Recipe& recipe, double f )
+{
+	return BZPeakZ( MakeBZ( recipe, f ) ) > 0.0;
+}
+
+double BZHopfF( const Recipe& recipe )
+{
+	if( !BZOscillates( recipe, 1.0 ) )
+		return 1.0;
+	if( BZOscillates( recipe, 4.0 ) )
+		return 4.0;
+	double lo = 1.0, hi = 4.0;
+	for( int i = 0; i < 20; ++i )
+	{
+		const double mid = 0.5 * ( lo + hi );
+		( BZOscillates( recipe, mid ) ? lo : hi ) = mid;
+	}
+	return 0.5 * ( lo + hi );
+}
+
 double BZPeakZ( const BZModel& m )
 {
 	struct Key

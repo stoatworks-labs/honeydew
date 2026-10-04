@@ -146,6 +146,7 @@ function shaderSource(stage, text) {
 
 const printed = [];
 let core;
+let liveInstance = 0;//the plugin instance on the page, for read-outs that ask it something
 try {
   core = await createHoneydew({
     honeydewShaderSource: shaderSource,
@@ -220,7 +221,10 @@ const UNITS = {
   'Drop Size': (x) => `${fixed(x, 1)} mm`,
   'Auto Drop': (x) => (x <= 0 ? 'off' : `${fixed(x, x < 10 ? 1 : 0)} a minute`),
   Exposure: (x) => `${x >= 0 ? '+' : '−'}${fixed(Math.abs(x), 2)} stops`,
-  Excitability: (x) => `f ${fixed(x, 2)}${x > 2.414 ? ' (excitable)' : ' (oscillating)'}`,
+  // The regime is the plugin's own verdict at the sliders' recipe (Chemistry.cpp:
+  // two catalyst peaks in 200 s of the ODE), not a fixed number: at the 1×
+  // recipe it stops oscillating at f 1.78, at twice the acid at 2.16.
+  Excitability: (x) => `f ${fixed(x, 2)}${liveInstance ? (core._hd_bz_oscillates(liveInstance, x) ? ' (oscillating)' : ' (excitable)') : ''}`,
 };
 
 function readout(d) {
@@ -251,7 +255,7 @@ const HINTS = {
   Drop: 'The reaction’s own dose: a silver spot that fires a BZ wave, thiosulfate into the clock, air into the dye family, permanganate into the chameleon, an iodide perturbation into CDIMA and Briggs–Rauscher. FF_TYPE_EVENT.',
   'Drop Size': 'The drop’s diameter, 1 to 20 mm.',
   'Drop Position': 'Random (inside the dish, by the drop’s serial), Centre; SW Honeydew Over adds Brightest, where the clip is brightest.',
-  'Break Wave': 'BZ: a pipette drawn through the middle of the dish erases a wave and leaves the medium refractory, so the two ends curl into a pair of spirals — with Excitability past the Hopf point (slider above 0.64); at the default the next bulk firing overruns them. FF_TYPE_EVENT.',
+  'Break Wave': 'BZ: a pipette drawn through the middle of the dish erases a wave and leaves the medium refractory, so the two ends curl into a pair of spirals — with Excitability in the excitable regime (the read-out says so; 0.7 is a good setting); at the default the next bulk firing overruns them. FF_TYPE_EVENT.',
   Shake: 'Air into the dish (the dye family) with a burst of stirring that decays over 0.7 s. FF_TYPE_EVENT.',
   'Auto Drop': 'Off, or 1 to 60 drops a minute of chemical time.',
   'Clock Sync': 'Off, Beat or Bar: the clock’s thiosulfate, the dye family’s air and the chameleon’s permanganate are sized or timed so the snap, the fade or the green lands on the next beat or bar of the transport. The page has no bar phase, so the plugin runs its own at the Host BPM below the picture.',
@@ -260,7 +264,7 @@ const HINTS = {
   Exposure: '±2 stops on the picture.',
   'Seed From Clip': 'SW Honeydew Over: a fresh dish is excited where the clip is bright.',
   Mix: 'SW Honeydew Over: the filtered clip against the clip. At 0 the clip is returned bit for bit.',
-  Excitability: 'BZ only (0.1.1): the Oregonator’s stoichiometric factor f, 1 to 4 (geometric). Below the Hopf point (f = 1 + √2 ≈ 2.41, slider 0.64) the dish oscillates in bulk and a cut wave is overrun; past it the layer is excitable and quiet until a Drop, and a Break Wave winds a pair of spirals. The default 1.4 is the 0.1.0 dish.',
+  Excitability: 'BZ only (0.1.1): the Oregonator’s stoichiometric factor f, 1 to 4 (geometric). At low f the dish oscillates in bulk and a cut wave is overrun; past the model’s own boundary (f 1.78 at the 1× recipe, slider 0.42, moving with the acid: the read-out says which) the layer is excitable, quiet until a Drop, and a Break Wave winds a pair of spirals. The default 1.4 is the 0.1.0 dish.',
 };
 
 //===========================================================================
@@ -518,6 +522,7 @@ function createRenderer(gl) {
   function start(which, width, height) {
     if (instance) core._hd_delete(instance);
     instance = core._hd_new(which === 'over' ? 1 : 0);
+    liveInstance = instance;
     variant = which;
     pushed = new Map();
     releases = [];
