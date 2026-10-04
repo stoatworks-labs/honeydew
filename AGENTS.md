@@ -559,7 +559,7 @@ port of it**:
 
 ## What filming the release video found (2026-10-04)
 
-The take is `stoatworks-backend/video/projects/honeydew/` (`hdtest --pipe` and
+The take is YouTube `EbBfD06QFAs`, from `stoatworks-backend/video/projects/honeydew/` (`hdtest --pipe` and
 `--over --pipe` through cue sheets, Resolume's demo clips under the Over). It
 found these, recorded here rather than worked around:
 

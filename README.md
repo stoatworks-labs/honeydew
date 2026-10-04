@@ -71,6 +71,17 @@ macOS builds are signed and notarised and open normally. The Windows builds are 
 
 <!-- downloads:end -->
 
+## Video
+
+[![Honeydew: oscillating and clock reactions in a dish, for Resolume](docs/video-thumb.png)](https://www.youtube.com/watch?v=EbBfD06QFAs)
+
+*[Watch it](https://www.youtube.com/watch?v=EbBfD06QFAs) — 88 seconds: ferroin target waves,
+a stirred dish flipping red–blue–red, CDIMA Turing spots, the traffic light shaken back, the
+chameleon's rings and a drop on every audio onset, then the Over on Resolume's demo clips:
+a BZ filter, the iodine clock snapping on the bar, Briggs–Rauscher, the blue bottle and a
+Ru(bpy)₃ dish under Light Coupling. Every frame is the real plugin's output, rendered by its
+offline harness through `hdtest --pipe`, not captured from Resolume.*
+
 ## The one idea
 
 **A thin layer of real reagents in a dish on a lightbox.** Every reaction is a published
