@@ -123,8 +123,16 @@ check_bundle() {
 	[[ "$( read_plist CFBundleExecutable )" == "$executable" ]] || fail "$executable: CFBundleExecutable is wrong"
 	[[ "$( read_plist CFBundlePackageType )" == "BNDL" ]] || fail "$executable: CFBundlePackageType is not BNDL"
 	[[ "$( read_plist CFBundleVersion )" == "$declared" ]] || fail "$executable: plist version != CMakeLists $declared"
-	grep -q "versionFallback = \"v$declared\"" source/StoatworksAbout.h \
-		|| fail "StoatworksAbout.h's versionFallback is not v$declared"
+	# StoatworksAbout.h is GENERATED (stoatworks-backend's sync-about) and lags
+	# a version bump until the next sync. VERSION_SYNC_PENDING=1 says a bump is
+	# in flight: the lag is reported, not fatal. Without it, a mismatch fails.
+	if ! grep -q "versionFallback = \"v$declared\"" source/StoatworksAbout.h; then
+		if [[ "${VERSION_SYNC_PENDING:-0}" == "1" ]]; then
+			echo "   PENDING: StoatworksAbout.h's versionFallback is not v$declared (sync-about regenerates it)"
+		else
+			fail "StoatworksAbout.h's versionFallback is not v$declared (a bump in flight? VERSION_SYNC_PENDING=1)"
+		fi
+	fi
 	echo "ok   $identifier, BNDL, v$declared -- plist, CMakeLists and About agree"
 
 	codesign --force --sign - --timestamp=none "$bundle" >/dev/null 2>&1 || fail "$bundle could not be ad-hoc signed"
@@ -159,7 +167,7 @@ step "Checks (this Mac's GPU, 1280x720 and 320x180)"
 #---------------------------------------------------------------------------
 # Every claim the README makes, in the order the README makes them.
 OFFLINE="names spectra transport timebase-law"
-CHECKS="beer over-check oregonator fieldnoyes spiral photo clock sync briggs traffic bluebottle chameleon turing stir units timebase resize prime state"
+CHECKS="beer over-check oregonator fieldnoyes spiral photo clock sync briggs traffic bluebottle chameleon turing stir units excitable freshstir timebase resize prime state"
 for check in $OFFLINE $CHECKS; do
 	if out=$( "$HDTEST" --$check 2>&1 ); then
 		printf '   ok   hdtest --%s: %s\n' "$check" "$( printf '%s\n' "$out" | grep -c '^  ok' ) checks"

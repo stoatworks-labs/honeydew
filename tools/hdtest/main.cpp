@@ -873,6 +873,9 @@ struct Perturb
 	bool bottleDouble    = false;///< --bluebottle: the plugin's k2 doubled
 	bool chameleonSwap   = false;///< --chameleon: kA and kB swapped
 	bool turingNoD       = false;///< --turing: d set to 1 (no differential diffusion)
+	bool excitableNoBar  = false;///< --excitable: the Break Wave never pressed (a ring, not a pair)
+	bool excitableDefault = false;///< --excitable: the default Excitability behaving as the excitable one
+	bool freshAtRest     = false;///< --freshstir: the fresh dish seeded exactly on the rest state (0.1.0)
 	bool stirOff         = false;///< --stir: eddy diffusion and relaxation ignored (Stir dead)
 	bool unitsWrong      = false;///< --units: the cell size not following Dish Width
 	bool timebaseFloat   = false;///< --timebase: elapsed time from a float host clock
@@ -1580,14 +1583,22 @@ int runOverCheck( const Perturb& perturb )
 // BZ helpers: a still dish with no pacemakers, the three-variable model's
 // one-dimensional double reference, and the phase around a point.
 //===========================================================================
-/// Params with the pacemaker effect off (a homogeneous dish) and, when
-/// `fOverride` > 0, the stoichiometric factor set (f = 2.6 is just past the
-/// Hopf point at the 1x recipe: excitable, not oscillatory).
-void bzHomogeneous( Rig& rig, double fOverride )
+/// The excitable setting the wave checks run at: f = 2.6, just past the Hopf
+/// point at the 1x recipe (1 + sqrt 2 = 2.414), as the EXCITABILITY CONTROL
+/// gives it -- the float the host would send, converted by the plugin's own
+/// mapping, so the references and the plugin use the same f to the bit.
+const float kExcitableParam = ParamFromExcitability( 2.6 );
+const double kFWave         = ExcitabilityFromParam( kExcitableParam );
+
+/// Params with the pacemaker effect off (a homogeneous dish: the pacemakers
+/// have no control, so this stays a test hook) and, when `f` > 0, the
+/// stoichiometric factor set THROUGH THE EXCITABILITY CONTROL (0.1.1; 0.1.0
+/// set it through a hook no user could reach).
+void bzHomogeneous( Rig& rig, double f )
 {
 	rig.plugin.SetParamOverrideForTest( chem::P_BZ_PACE, 0.0f );
-	if( fOverride > 0.0 )
-		rig.plugin.SetParamOverrideForTest( chem::P_BZ_F, static_cast< float >( fOverride ) );
+	if( f > 0.0 )
+		rig.Set( PT_EXCITABILITY, ParamFromExcitability( f ) );
 }
 
 /// The three-variable Oregonator on a line, in double: explicit five-point
@@ -1930,7 +1941,7 @@ double referenceSpeed( double acidMultiplier, double fWave, double dtScale, doub
 int runFieldNoyes( const Perturb& perturb )
 {
 	std::printf( "\n=== fieldnoyes: a plane trigger wave's speed against the 1-D double solution at three acids; the acid exponent and Field & Noyes 1974, reported\n" );
-	const double fWave = 2.6;//excitable: just past the Hopf point
+	const double fWave = kFWave;//excitable: just past the Hopf point, through the control
 	const chem::Recipe recipe = chem::BaseRecipe( Reaction::BZ );
 	const chem::BZModel m     = chem::MakeBZ( recipe, fWave );
 	struct Acid
@@ -2060,7 +2071,7 @@ int runSpiral( const Perturb& perturb )
 		if( !rig.Init( raster.w, raster.h ) )
 			return 1;
 		prepare( rig, Reaction::BZ, cols, rows );
-		bzHomogeneous( rig, 2.6 );
+		bzHomogeneous( rig, kFWave );
 		rig.Set( PT_DISH_WIDTH, ParamFromDishWidth( 51.2 ) );
 		rig.Render( 1 );
 		rig.plugin.DropForTest( 3.0, rows * 0.5, 7.0 );
@@ -2137,6 +2148,338 @@ int runSpiral( const Perturb& perturb )
 }
 
 //===========================================================================
+// --excitable: Break Wave winds a spiral pair at a setting of the
+// Excitability control, from the defaults (the pacemakers on, Flow, a 60 mm
+// dish at Detail 256) plus that control, a Drop and the Break Wave button --
+// no harness hooks; and at the default Excitability (f = 1.4, the 0.1.0
+// dish) the same Break Wave leaves no persistent pair, which is the 0.1.0
+// behaviour the release video found, now measured.
+//===========================================================================
+/// Every +1 and -1 phase singularity's position, for the user-spiral check,
+/// which wants to tell a persistent core from a transient defect pair.
+void windingsAll( const Floats& state, int cols, int rows, double xStar, double zStar, std::vector< std::pair< double, double > >& plus, std::vector< std::pair< double, double > >& minus )
+{
+	auto phase = [ & ]( int i, int j ) {
+		const float* c = &state[ ( static_cast< size_t >( j ) * cols + i ) * 4 ];
+		return std::atan2( c[ 2 ] - zStar, c[ 0 ] - xStar );
+	};
+	for( int j = 2; j < rows - 3; ++j )
+		for( int i = 2; i < cols - 3; ++i )
+		{
+			const double p[ 4 ] = { phase( i, j ), phase( i + 1, j ), phase( i + 1, j + 1 ), phase( i, j + 1 ) };
+			double sum          = 0.0;
+			for( int k = 0; k < 4; ++k )
+			{
+				double d = p[ ( k + 1 ) % 4 ] - p[ k ];
+				while( d > kPi )
+					d -= 2.0 * kPi;
+				while( d < -kPi )
+					d += 2.0 * kPi;
+				sum += d;
+			}
+			const int w = static_cast< int >( std::lround( sum / ( 2.0 * kPi ) ) );
+			if( w == 1 )
+				plus.emplace_back( i + 0.5, j + 0.5 );
+			else if( w == -1 )
+				minus.emplace_back( i + 0.5, j + 0.5 );
+		}
+}
+
+struct UserSpiral
+{
+	bool ok = false;      ///< the rig ran
+	bool reached = false; ///< the drop's wave reached the pipette's band
+	double f = 0.0, tBreak = 0.0;
+	int samples = 0, held = 0, none = 0, pairs = 0;///< pairs: +1/-1 pairs in the first sample after the curl
+	int extra = 0, odd = 0;                        ///< samples with more pairs than the first, or unequal +1 and -1
+	int present = 0;                                ///< samples with at least one +1 and one -1
+	int tracked = 0;                                ///< samples in which both of the first pair's cores are found near where they last were
+	double maxStep = 0.0;                           ///< the furthest a tracked core moved between samples (2 s), in cells
+	double extraGap = 1e9;                          ///< the widest a transient extra pair ever got, in cells
+	double coreGap = 0.0;                           ///< the first pair's separation, in cells
+	std::string trace;                              ///< the (+,-) counts of every sample that is not held
+	double period = 0.0, spread = 0.0;
+	size_t probes = 0;
+	int cols = 0, rows = 0;
+	double px = 0, py = 0, mx = 0, my = 0;
+};
+
+UserSpiral userSpiral( const Raster& raster, float excitability, bool pressBar )
+{
+	UserSpiral r;
+	Rig rig;
+	if( !rig.Init( raster.w, raster.h ) )
+		return r;
+	r.ok = true;
+	//The defaults, plus the control: no SetGridForTest, no overrides.
+	rig.Set( PT_REACTION, static_cast< float >( Reaction::BZ ) );
+	rig.Set( PT_EXCITABILITY, excitability );
+	rig.plugin.SetUncappedForTest( true );//a chemical second a frame, exactly
+	rig.Render( 1 );
+	r.f    = ExcitabilityFromParam( excitability );
+	r.cols = rig.plugin.GridCols();
+	r.rows = rig.plugin.GridRows();
+	const int cols = r.cols, rows = r.rows;
+	//A Drop (the button), where Drop Position Random puts it.
+	rig.Set( PT_DROP, 1.0f );
+	rig.Chem( 1.0 );
+	rig.Set( PT_DROP, 0.0f );
+	//The wave reaches the pipette's band (the middle row, the middle third):
+	//then the Break Wave button, which erases the band and leaves two ends.
+	auto inBand = [ & ]( const Floats& st ) {
+		for( int j = rows / 2 - 1; j <= rows / 2 + 1; ++j )
+			for( int i = static_cast< int >( 0.36 * cols ); i < static_cast< int >( 0.64 * cols ); ++i )
+				if( st[ ( static_cast< size_t >( j ) * cols + i ) * 4 ] > 0.3f )
+					return true;
+		return false;
+	};
+	double t = 1.0;
+	for( ; t < 600.0; t += 1.0 )
+	{
+		rig.Chem( 1.0 );
+		if( inBand( rig.State() ) )
+		{
+			r.reached = true;
+			break;
+		}
+	}
+	r.tBreak = t;
+	if( pressBar )
+	{
+		rig.Set( PT_BREAK_WAVE, 1.0f );
+		rig.Chem( 1.0 );
+		rig.Set( PT_BREAK_WAVE, 0.0f );
+	}
+	else
+		rig.Chem( 1.0 );
+	double zPeak = 0.0;
+	{
+		const Floats st = rig.State();
+		for( size_t i = 2; i < st.size(); i += 4 )
+			zPeak = std::max( zPeak, static_cast< double >( st[ i ] ) );
+	}
+	const double xStar = 0.2, zStar = 0.4 * zPeak;
+	Singularities first {};
+	double trackPx = 0, trackPy = 0, trackMx = 0, trackMy = 0;
+	std::vector< std::vector< double > > probeX( 8 );
+	for( int k = 0; k < 200; ++k )
+	{
+		rig.Chem( 2.0 );
+		if( k < 40 )
+			continue;//the ends curl first
+		const Floats st        = rig.State();
+		const Singularities sg = windings( st, cols, rows, xStar, zStar );
+		++r.samples;
+		if( r.samples == 1 )
+		{
+			first   = sg;
+			r.pairs = std::min( sg.plus, sg.minus );
+			r.px    = sg.px;
+			r.py    = sg.py;
+			r.mx    = sg.mx;
+			r.my    = sg.my;
+			trackPx = sg.px;
+			trackPy = sg.py;
+			trackMx = sg.mx;
+			trackMy = sg.my;
+		}
+		if( sg.plus >= 1 && sg.minus >= 1 )
+			++r.present;
+		//Track the first pair's two cores: a spiral core meanders, but a few
+		//cells between samples; a core that is not found within 10 cells of
+		//where it last was has gone.
+		{
+			std::vector< std::pair< double, double > > plus, minus;
+			windingsAll( st, cols, rows, xStar, zStar, plus, minus );
+			auto follow = [ & ]( std::vector< std::pair< double, double > >& found, double& fx, double& fy, double& step ) {
+				double best = 1e9;
+				std::pair< double, double > at { fx, fy };
+				for( const auto& q : found )
+				{
+					const double d = std::hypot( q.first - fx, q.second - fy );
+					if( d < best )
+					{
+						best = d;
+						at   = q;
+					}
+				}
+				if( best <= 10.0 )
+				{
+					step = std::max( step, best );
+					fx   = at.first;
+					fy   = at.second;
+					return true;
+				}
+				return false;
+			};
+			const bool p1 = follow( plus, trackPx, trackPy, r.maxStep );
+			const bool m1 = follow( minus, trackMx, trackMy, r.maxStep );
+			if( p1 && m1 )
+				++r.tracked;
+		}
+		if( sg.plus == sg.minus && sg.plus == r.pairs && r.pairs >= 1 )
+			++r.held;
+		else
+		{
+			if( sg.plus != sg.minus )
+				++r.odd;
+			else if( sg.plus > r.pairs )
+				++r.extra;
+			r.trace += fmt( " %d:(%d,%d)", k, sg.plus, sg.minus );
+			//How far apart the extra singularities are: a transient defect is a
+			//+1 and a -1 a few cells apart; a second spiral pair would be far.
+			std::vector< std::pair< double, double > > plus, minus;
+			windingsAll( st, cols, rows, xStar, zStar, plus, minus );
+			double widest = 0.0;
+			for( const auto& a : plus )
+			{
+				if( std::hypot( a.first - r.px, a.second - r.py ) < 3.0 )
+					continue;//the first pair's +1 core
+				double nearest = 1e9;
+				for( const auto& b : minus )
+					nearest = std::min( nearest, std::hypot( a.first - b.first, a.second - b.second ) );
+				widest = std::max( widest, nearest );
+			}
+			r.extraGap = r.extraGap > 1e8 ? widest : std::max( r.extraGap, widest );
+		}
+		if( r.samples == 1 )
+			r.coreGap = std::hypot( r.px - r.mx, r.py - r.my );
+		if( sg.plus == 0 && sg.minus == 0 )
+			++r.none;
+		const double cx = 0.5 * ( first.px + first.mx ), cy = 0.5 * ( first.py + first.my );
+		for( int q = 0; q < 8; ++q )
+		{
+			const double ang = q * kPi / 4.0;
+			const int pi = std::clamp( static_cast< int >( cx + 20.0 * std::cos( ang ) ), 0, cols - 1 );
+			const int pj = std::clamp( static_cast< int >( cy + 20.0 * std::sin( ang ) ), 0, rows - 1 );
+			probeX[ static_cast< size_t >( q ) ].push_back( st[ ( static_cast< size_t >( pj ) * cols + pi ) * 4 ] );
+		}
+	}
+	std::vector< double > periods;
+	for( const auto& series : probeX )
+	{
+		std::vector< double > times;
+		for( size_t i = 1; i + 1 < series.size(); ++i )
+			if( series[ i ] > series[ i - 1 ] && series[ i ] >= series[ i + 1 ] && series[ i ] > 0.3 )
+				times.push_back( 2.0 * i );
+		if( times.size() >= 3 )
+			periods.push_back( ( times.back() - times.front() ) / static_cast< double >( times.size() - 1 ) );
+	}
+	std::sort( periods.begin(), periods.end() );
+	r.probes = periods.size();
+	r.period = periods.empty() ? 0.0 : periods[ periods.size() / 2 ];
+	for( double q : periods )
+		r.spread = std::max( r.spread, std::fabs( q - r.period ) );
+	return r;
+}
+
+int runExcitable( const Perturb& perturb )
+{
+	std::printf( "\n=== excitable: from the defaults, Excitability past the Hopf point, a Drop and the Break Wave button wind a spiral pair that persists; at the default Excitability the same press leaves none\n" );
+	//A slider position a user reaches: 0.7, f = 4^0.7 = 2.64 (the Hopf point is at 0.636).
+	const float reachable = 0.7f;
+	for( const Raster& raster : kRasters )
+	{
+		const UserSpiral e = userSpiral( raster, reachable, !perturb.excitableNoBar );
+		if( !e.ok )
+			return 1;
+		//A pair in at least 95% of the samples (the cores are the first
+		//pair's: a transient defect pair elsewhere -- a +1 and a -1 a few cells
+		//apart where an arm crosses a pacemaker site -- is counted and shown,
+		//and must stay small beside the first pair's separation).
+		//The pair the press made persists: both of its cores are followed
+		//through at least 95% of the samples (a core meanders a few cells
+		//between samples), the dish is never without a singularity, and the
+		//arms sweep the probes at one period. A second pair that a wave break
+		//makes and that annihilates again (the dish is heterogeneous: the
+		//pacemaker sites run 30% faster) is counted and shown, not gated.
+		Check( e.reached && e.pairs >= 1 && e.samples > 0 && e.tracked >= static_cast< int >( 0.95 * e.samples ) && e.none == 0 && e.probes >= 6 && e.spread <= 2.0 + 0.1 * e.period,
+		       fmt( "%dx%d  Excitability %.2f (f %.2f) on the %dx%d grid of a 60 mm dish: the drop's wave reached the pipette at %.0f s; after the press the pair's two cores are followed through %d of %d samples, moving at most %.1f cells in 2 s (first at (%.0f,%.0f) and (%.0f,%.0f), %.0f cells apart; %d samples with no singularity; %d samples hold a second pair, up to %.0f cells wide, that comes and goes); the arms sweep %zu of 8 probes every %.1f s (spread %.1f s)",
+		            raster.w, raster.h, reachable, e.f, e.cols, e.rows, e.tBreak, e.tracked, e.samples, e.maxStep, e.px, e.py, e.mx, e.my, e.coreGap, e.none, e.extra, e.extra ? e.extraGap : 0.0, e.probes, e.period, e.spread ) );
+		//The 0.1.0 dish: the default Excitability, the same press.
+		const float defaultParam = perturb.excitableDefault ? reachable : ParamFromExcitability( chem::kOregonator.f );
+		const UserSpiral d       = userSpiral( raster, defaultParam, true );
+		if( !d.ok )
+			return 1;
+		Check( d.reached && d.present < static_cast< int >( 0.5 * d.samples ),
+		       fmt( "%dx%d  at the default Excitability (f %.2f) the same press leaves no persistent pair: a pair is present in %d of %d samples (%d with none): the bulk firing overruns the ends, as 0.1.0 did",
+		            raster.w, raster.h, d.f, d.present, d.samples, d.none ) );
+	}
+	return Verdict();
+}
+
+//===========================================================================
+// --freshstir: a fresh BZ dish at Stir 1, from Reset, starts on its own.
+// 0.1.0 seeded the rest state exactly, and the whole-vessel relaxation of
+// hard stirring held the uniform dish on that unstable fixed point for 1500 s
+// (the browser demo's build found it). The fresh dish now starts a touch
+// above it (kFreshKick); the negative control seeds the exact rest state.
+//===========================================================================
+int runFreshStir( const Perturb& perturb )
+{
+	std::printf( "\n=== freshstir: a fresh BZ dish at Stir 1, from Reset, on the host's clock at the default Time-lapse, oscillates on its own within the stated time\n" );
+	const chem::BZModel m = chem::MakeBZ( chem::BaseRecipe( Reaction::BZ ) );
+	const double peak     = chem::BZPeakZ( m );
+	for( const Raster& raster : kRasters )
+	{
+		Rig rig;
+		if( !rig.Init( raster.w, raster.h ) )
+			return 1;
+		rig.plugin.SetFreshAtRestForTest( perturb.freshAtRest );
+		rig.Set( PT_REACTION, static_cast< float >( Reaction::BZ ) );
+		rig.Set( PT_STIR, 1.0f );
+		//The user's clock: 60 fps at the default 30x, half a chemical second a
+		//frame, uncapped so the chemistry is exact (the cap bites just above
+		//32x when stirred, AGENTS.md). A dish seeded exactly on the rest state
+		//stays there on this clock (0.1.0's fault, the negative control); it is
+		//the plugin's rounding that pins it, and a different frame length can
+		//happen to let it go, so the check runs the clock a user runs.
+		rig.plugin.SetUncappedForTest( true );
+		rig.Render( 1 );
+		//Reset: the button, so the dish is the one a user gets.
+		rig.Set( PT_RESET, 1.0f );
+		rig.Render( 1 );
+		rig.Set( PT_RESET, 0.0f );
+		double first = -1.0, second = -1.0;
+		int rises    = 0;
+		bool above   = false;
+		double zMin = 1e9, zMax = -1e9;
+		const double chemPerFrame = TimelapseFromParam( rig.plugin.GetFloatParameter( static_cast< unsigned int >( rig.plugin.HostIndexOf( PT_TIMELAPSE ) ) ) ) / rig.fps;
+		const int frames          = static_cast< int >( std::lround( 300.0 / chemPerFrame ) );
+		for( int f = 1; f <= frames; ++f )
+		{
+			rig.Render( 1 );
+			if( f % 2 )
+				continue;
+			const double t  = f * chemPerFrame;
+			const Floats st = rig.State();
+			double mean     = 0.0;
+			const size_t n  = st.size() / 4;
+			for( size_t i = 0; i < n; ++i )
+				mean += st[ i * 4 + 2 ] / n;
+			zMin = std::min( zMin, mean );
+			zMax = std::max( zMax, mean );
+			const bool a = mean > 0.5 * peak;
+			if( a && !above )
+			{
+				++rises;
+				if( first < 0.0 )
+					first = t;
+				else if( second < 0.0 )
+					second = t;
+			}
+			above = a;
+		}
+		//Two rises within 300 chemical seconds, the first within 60 s (the ODE
+		//from the same kick peaks at 15 s; a period is 101 s).
+		Check( rises >= 2 && first > 0.0 && first <= 60.0,
+		       fmt( "%dx%d  a fresh dish at Stir 1 from Reset, %d frames of %.2f chemical s: the catalyst's dish mean rises through half the model's peak %d times in 300 s, first at %.0f s then at %.0f s (z from %.4f to %.4f; the peak in double %.4f)",
+		            raster.w, raster.h, frames, chemPerFrame, rises, first, second, zMin, zMax, peak ) );
+	}
+	return Verdict();
+}
+
+//===========================================================================
 // --photo: in Ru-BZ a lit band above the model's threshold stops a wave and
 // one below lets it through; ferroin ignores the same light.
 //===========================================================================
@@ -2154,7 +2497,7 @@ bool waveCrosses( Rig& rig, int cols, int rows, double seconds )
 int runPhoto( const Perturb& perturb )
 {
 	std::printf( "\n=== photo: Ru-BZ: a lit band above the photo-Oregonator's threshold stops a wave, one below lets it through; ferroin ignores the light\n" );
-	const double fWave = 2.6;
+	const double fWave = kFWave;
 	//The model's own threshold on the 1-D line: bisection on phi for a wave
 	//crossing a 1 mm band (10 cells) of light.
 	const chem::BZModel m = chem::MakeBZ( chem::BaseRecipe( Reaction::BZ ), fWave );
@@ -3452,7 +3795,7 @@ int runStir( const Perturb& perturb )
 int runUnits( const Perturb& perturb )
 {
 	std::printf( "\n=== units: a trigger wave's speed in mm/s depends on the cell's size in mm alone: not on Dish Width or Detail separately, not on the raster\n" );
-	const double fWave = 2.6;
+	const double fWave = kFWave;
 	struct Case
 	{
 		int cols;
@@ -3828,6 +4171,7 @@ const std::vector< CheckEntry >& checks()
 		{ "sync", runSync, false },          { "briggs", runBriggs, false },     { "traffic", runTraffic, false },
 		{ "bluebottle", runBlueBottle, false }, { "chameleon", runChameleon, false }, { "stir", runStir, false },
 		{ "units", runUnits, false },        { "turing", runTuring, false },
+		{ "excitable", runExcitable, false }, { "freshstir", runFreshStir, false },
 	};
 	return list;
 }
@@ -3880,6 +4224,9 @@ int runNegative( bool offlineOnly )
 	add( "stir", runStir, "Stir ignored", []( Perturb& p ) { p.stirOff = true; } );
 	add( "units", runUnits, "the cell 0.1 mm whatever Dish Width says", []( Perturb& p ) { p.unitsWrong = true; } );
 	add( "turing", runTuring, "the inhibitor diffusing as slowly as the activator", []( Perturb& p ) { p.turingNoD = true; } );
+	add( "excitable", runExcitable, "the Break Wave never pressed: a ring, not a pair", []( Perturb& p ) { p.excitableNoBar = true; } );
+	add( "excitable", runExcitable, "the default Excitability behaving as the excitable setting", []( Perturb& p ) { p.excitableDefault = true; } );
+	add( "freshstir", runFreshStir, "the fresh dish seeded exactly on the rest state, as 0.1.0 did", []( Perturb& p ) { p.freshAtRest = true; } );
 	if( offlineOnly )
 		cases.erase( std::remove_if( cases.begin(), cases.end(), []( const Case& c ) { return !isOffline( c.name ); } ), cases.end() );
 	if( !g_negativeOnly.empty() )
@@ -3997,6 +4344,7 @@ int main( int argc, char** argv )
 			             "  --script PATH     cues for --pipe/--film: 'frame Name value' lines; a wrong name or value is refused\n\n"
 			             "  checks (GL): --state --prime --resize --timebase --beer --over-check --oregonator --fieldnoyes --spiral --photo\n"
 			             "               --clock --sync --briggs --traffic --bluebottle --chameleon --stir --units --turing\n"
+			             "               --excitable --freshstir\n"
 			             "  checks (no GL): --names --spectra --transport --timebase-law\n"
 			             "  --negative [--only NAME]   --offline   --bench\n" );
 			return 0;

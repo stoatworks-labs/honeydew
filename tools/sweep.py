@@ -83,6 +83,9 @@ SWEEP = {
     "Exposure": ("0.2", "0.8", [], []),
     "Seed From Clip": ("0", "1", [], []),
     "Mix": ("0", "1", [], []),
+    # BZ only (the default reaction): f 1 (fast bulk oscillation) against f 4
+    # (excitable, quiet until a drop) over 256 chemical seconds.
+    "Excitability": ("0", "1", [LATER], []),
 }
 
 # Parameters with no pixel to sweep: the FFT buffer (its float is meaningless;
