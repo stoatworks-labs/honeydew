@@ -12,7 +12,7 @@
 > pixels and gets **101.19 s against 100.97 s** from the three-variable Oregonator in
 > double; `--fieldnoyes` reads a trigger wave's speed and gets **0.1017 mm/s against
 > 0.1008** from the 1-D double solution of the same PDE at three acids (in the excitable
-> setting f = 2.6, which the harness sets and no control reaches: see Status); `--clock` reads
+> setting f = 2.6, Excitability 0.69); `--clock` reads
 > the iodine clock's snap and gets **25.25 s against the Harcourt–Esson closed form's
 > 25.01**; `--briggs` reads eleven batch Briggs–Rauscher oscillations, whose gaps lengthen
 > from about 130 s to 640 s as the batch runs down, and gets a **mean period of 248.00 s
