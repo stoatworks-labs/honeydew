@@ -36,10 +36,6 @@ wide ferroin BZ layer in Flow, pacemakers firing target waves that annihilate wh
 they meet. Rendered by the plugin's offline harness (`hdtest`), not captured from
 Resolume.</sub>
 
-## Video
-
-No video yet.
-
 ## The one idea
 
 **A thin layer of real reagents in a dish on a lightbox.** Every reaction is a published
