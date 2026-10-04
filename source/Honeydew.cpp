@@ -970,7 +970,14 @@ FFResult HoneydewPlugin::ProcessOpenGL( ProcessOpenGLStruct* pgl )
 		break;
 	case Reaction::CDIMA:
 		maxD += params_[ chem::P_LE_DU ] * std::max( 1.0f / std::max( params_[ chem::P_LE_SIGMA ], 1.0f ), params_[ chem::P_LE_D ] );
-		reactionLimit = 0.1 * params_[ chem::P_LE_TSCALE ] / std::max( params_[ chem::P_LE_B ], 1.0f );
+		//With little starch (sigma near 1) the model is a relaxation oscillator
+		//whose activator crashes within a fraction of a t', and the fixed-step
+		//ROS2 needs an eighth of the step it needs at sigma 151 (measured on
+		//the CPU at the 1x recipe: stable to 0.004 s at sigma 1, 0.0085 at 2.5,
+		//0.017 at 5.5, 0.068 from 11.5 up; this law gives 0.0034, 0.0057,
+		//0.0126, 0.0264): the limit scales with sigma up to 15.
+		reactionLimit = 0.1 * params_[ chem::P_LE_TSCALE ] / std::max( params_[ chem::P_LE_B ], 1.0f )
+		                * std::clamp( params_[ chem::P_LE_SIGMA ] / 15.0, 0.1, 1.0 );
 		break;
 	case Reaction::IodineClock:
 		maxD += std::max( std::max( params_[ chem::P_CK_DH2O2 ], params_[ chem::P_CK_DI ] ), std::max( params_[ chem::P_CK_DI2 ], params_[ chem::P_CK_DS ] ) );

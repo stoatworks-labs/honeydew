@@ -2622,9 +2622,11 @@ int runTraffic( const Perturb& perturb )
 		//the well-mixed reference does not model).
 		const DyeRun shaken = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 1.0, false, 1800.0, perturb, 2, 900.0, true );
 		const DyeRun one    = dyeRun( raster, Reaction::TrafficLight, depth, 1.0, 1.0, 1.0, false, 1200.0, perturb );
-		//Each transition: a frame, plus the plugin's own step error (Richardson).
-		const double boundRed    = 0.5 + 2.0 * std::fabs( one.tRed - one.tRedHalf );
-		const double boundYellow = 0.5 + 2.0 * std::fabs( one.tYellow - one.tYellowHalf );
+		//Each transition: a frame, plus the plugin's own step error (Richardson),
+		//plus a percent of the time: the transitions are a slow hue drift across
+		//a class boundary, and the float colour sits ~1e-4 from the double one.
+		const double boundRed    = 0.5 + 2.0 * std::fabs( one.tRed - one.tRedHalf ) + 0.01 * refRed;
+		const double boundYellow = 0.5 + 2.0 * std::fabs( one.tYellow - one.tYellowHalf ) + 0.01 * refYellow;
 		Check( shaken.cycles >= 2 && one.tRed > 0.0 && one.tYellow > 0.0 && std::fabs( one.tRed - refRed ) <= boundRed && std::fabs( one.tYellow - refYellow ) <= boundYellow,
 		       fmt( "%dx%d  two Shakes 900 s apart: %s; %d green > red > yellow cycles. Dosed with air (%s): red at %.1f s (reference %.1f, bound %.1f), yellow at %.1f s (reference %.1f, bound %.1f)",
 		            raster.w, raster.h, shaken.sequence.c_str(), shaken.cycles, one.sequence.c_str(), one.tRed, refRed, boundRed, one.tYellow, refYellow, boundYellow ) );
@@ -3273,7 +3275,32 @@ int runTuring( const Perturb& perturb )
 	const chem::Recipe recipe = chem::BaseRecipe( Reaction::CDIMA );
 	const chem::LEModel m     = chem::MakeLE( recipe );
 	const double sigmaHopf    = ( 3.0 * m.a / 5.0 - 25.0 / m.a ) / m.b;
-	Note( fmt( "the model at the 1x recipe: a %.2f, b %.3f, sigma %.1f (the Hopf line is at sigma %.1f), d %.3f; Turing k_c %.3f per x' (x' = %.4f mm), wavelength %.4f mm", m.a, m.b, m.sigma, sigmaHopf, m.d, m.kc, m.xScale, m.lambdaMm ) );
+	//The fastest-growing mode from the dispersion relation (the eigenvalue of
+	//J - k^2 diag( 1/sigma, d )): what the pattern selects above onset, which
+	//is not the onset's k_c.
+	double kFast = 0.0, growth = -1e9;
+	{
+		const double u0 = m.u0, v0 = m.v0, den = 1.0 + u0 * u0, g = ( 1.0 - u0 * u0 ) / ( den * den );
+		const double J11 = ( -1.0 - 4.0 * v0 * g ) / m.sigma, J12 = ( -4.0 * u0 / den ) / m.sigma, J21 = m.b * ( 1.0 - v0 * g ), J22 = -m.b * u0 / den;
+		for( double k = 0.02; k < 6.0; k += 0.002 )
+		{
+			const double a11 = J11 - k * k / m.sigma, a22 = J22 - k * k * m.d;
+			const double tr = a11 + a22, det = a11 * a22 - J12 * J21;
+			const double disc = tr * tr - 4.0 * det;
+			const double lam  = disc >= 0.0 ? 0.5 * ( tr + std::sqrt( disc ) ) : 0.5 * tr;
+			if( lam > growth )
+			{
+				growth = lam;
+				kFast  = k;
+			}
+		}
+	}
+	const double lambdaFast = 2.0 * kPi / kFast * m.xScale;
+	const double efold      = m.tScale / growth;
+	Note( fmt( "the model at the 1x recipe: a %.2f, b %.3f, sigma %.1f (the Hopf line is at sigma %.1f), d %.3f; the onset k_c %.3f per x' (x' = %.4f mm, %.4f mm); the fastest-growing mode k %.3f, wavelength %.4f mm, e-folding %.0f s",
+	           m.a, m.b, m.sigma, sigmaHopf, m.d, m.kc, m.xScale, m.lambdaMm, kFast, lambdaFast, efold ) );
+	//Six e-foldings from the seed's 2% noise, then some saturation.
+	const double grow = std::min( 8.0 * efold, 1500.0 );
 	struct Case
 	{
 		int cols, rows;
@@ -3282,6 +3309,7 @@ int runTuring( const Perturb& perturb )
 	const Case cases[] = { { 512, 256, 10.0 }, { 1024, 512, 10.0 }, { 512, 256, 5.0 } };
 	for( const Raster& raster : kRasters )
 	{
+		double patternContrast = 0.0;
 		int wrong = 0;
 		std::string what;
 		for( const Case& c : cases )
@@ -3295,8 +3323,8 @@ int runTuring( const Perturb& perturb )
 			if( perturb.turingNoD )
 				rig.plugin.SetParamOverrideForTest( chem::P_LE_D, static_cast< float >( 1.0 / m.sigma ) );//the inhibitor as slow as the activator
 			rig.Render( 1 );
-			for( int f = 0; f < 240; ++f )
-				rig.Chem( 0.5 );//120 s: a few hundred t'
+			for( double t = 0.0; t < grow; t += 1.0 )
+				rig.Chem( 1.0 );
 			const Floats st = rig.State();
 			std::vector< double > u( static_cast< size_t >( c.cols ) * c.rows );
 			double mean = 0.0, sq = 0.0;
@@ -3308,6 +3336,7 @@ int runTuring( const Perturb& perturb )
 			for( double v : u )
 				sq += ( v - mean ) * ( v - mean ) / u.size();
 			const double contrast = mean > 0.0 ? std::sqrt( sq ) / mean : 0.0;
+			patternContrast       = std::max( patternContrast, contrast );
 			const std::vector< double > power = radialPower( u, c.cols, c.rows );
 			size_t peak = 1;
 			for( size_t b = 2; b < power.size(); ++b )
@@ -3316,13 +3345,20 @@ int runTuring( const Perturb& perturb )
 			const double cellMm = rig.plugin.CellMm();
 			const double extent = c.cols * cellMm;
 			const double lambda = extent / static_cast< double >( peak );
-			//One FFT bin: the wavenumber 1 / lambda within 1 / extent of 1 / lambda_c.
-			const bool ok = contrast > 0.1 && std::fabs( 1.0 / lambda - 1.0 / m.lambdaMm ) <= 1.0 / extent;
+			//One FFT bin: the wavenumber 1 / lambda within 1 / extent of the fastest mode's.
+			const bool ok = contrast > 0.1 && std::fabs( 1.0 / lambda - 1.0 / lambdaFast ) <= 1.0 / extent;
 			wrong += !ok;
-			what += fmt( " %d cells over %g mm (%.4f mm cells): contrast %.2f, wavelength %.4f mm (bin %zu of %.0f, model %.4f)%s;", c.cols, c.dishMm, cellMm, contrast, lambda, peak, extent / m.lambdaMm, m.lambdaMm, ok ? "" : " OUT" );
+			what += fmt( " %d cells over %g mm (%.4f mm cells): contrast %.2f, wavelength %.4f mm (bin %zu of %.1f, model %.4f)%s;", c.cols, c.dishMm, cellMm, contrast, lambda, peak, extent / lambdaFast, lambdaFast, ok ? "" : " OUT" );
 		}
-		Check( wrong == 0, fmt( "%dx%d %s %d wrong", raster.w, raster.h, what.c_str(), wrong ) );
-		//No starch: sigma 1, below the Hopf line: the dish oscillates as one, no pattern.
+		Check( wrong == 0, fmt( "%dx%d after %.0f s:%s %d wrong", raster.w, raster.h, grow, what.c_str(), wrong ) );
+		//No starch: sigma 1, below the Hopf line: a relaxation oscillation, no
+		//stationary pattern. The 2% seed noise leaves the cells' phases a little
+		//apart, so at a spike the dish is far from uniform for a moment (phase
+		//waves, as in the dish): what a Turing pattern has and this has not is
+		//a TIME-AVERAGE with structure. 300 s is ~43 periods, so a cell's
+		//average is within a couple of percent of its neighbours' whatever its
+		//phase; the stationary pattern above keeps its full contrast however
+		//long the average.
 		{
 			Rig rig;
 			if( !rig.Init( raster.w, raster.h ) )
@@ -3332,26 +3368,40 @@ int runTuring( const Perturb& perturb )
 			rig.Set( PT_REACTOR, static_cast< float >( Reactor::Flow ) );
 			rig.Set( PT_INDICATOR, 0.0f );
 			rig.Render( 1 );
+			std::vector< double > sum;
 			double worstContrast = 0.0, lo = 1e9, hi = -1e9;
-			for( int f = 0; f < 240; ++f )
+			int frames = 0;
+			for( int f = 0; f < 3000; ++f )
 			{
-				rig.Chem( 0.5 );
-				if( f % 10 == 9 )
+				rig.Chem( 0.1 );
+				const Floats st = rig.State();
+				const size_t n  = st.size() / 4;
+				if( sum.empty() )
+					sum.assign( n, 0.0 );
+				double mean = 0.0, sq = 0.0;
+				for( size_t i = 0; i < n; ++i )
 				{
-					const Floats st = rig.State();
-					double mean = 0.0, sq = 0.0;
-					const size_t n = st.size() / 4;
-					for( size_t i = 0; i < n; ++i )
-						mean += st[ i * 4 ] / n;
-					for( size_t i = 0; i < n; ++i )
-						sq += ( st[ i * 4 ] - mean ) * ( st[ i * 4 ] - mean ) / n;
-					worstContrast = std::max( worstContrast, mean > 0.0 ? std::sqrt( sq ) / mean : 0.0 );
-					lo            = std::min( lo, mean );
-					hi            = std::max( hi, mean );
+					sum[ i ] += st[ i * 4 ];
+					mean += st[ i * 4 ] / n;
 				}
+				for( size_t i = 0; i < n; ++i )
+					sq += ( st[ i * 4 ] - mean ) * ( st[ i * 4 ] - mean ) / n;
+				worstContrast = std::max( worstContrast, mean > 0.0 ? std::sqrt( sq ) / mean : 0.0 );
+				lo            = std::min( lo, mean );
+				hi            = std::max( hi, mean );
+				++frames;
 			}
-			Check( worstContrast < 0.02 && hi > 1.2 * lo, fmt( "%dx%d  without starch (sigma 1): spatial contrast at most %.4f over 120 s; the mean swings from %.3f to %.3f (it oscillates as one)",
-			                                                      raster.w, raster.h, worstContrast, lo, hi ) );
+			double mean = 0.0, sq = 0.0;
+			for( double& s : sum )
+			{
+				s /= frames;
+				mean += s / sum.size();
+			}
+			for( const double s : sum )
+				sq += ( s - mean ) * ( s - mean ) / sum.size();
+			const double averaged = mean > 0.0 ? std::sqrt( sq ) / mean : 0.0;
+			Check( averaged < 0.05 && hi > 1.2 * lo && hi < 100.0, fmt( "%dx%d  without starch (sigma 1): the 300 s time-average has contrast %.4f (a stationary pattern keeps its %.2f); the mean swings from %.3f to %.3f (a relaxation oscillation; the instantaneous contrast reaches %.2f at a spike)",
+			                                                      raster.w, raster.h, averaged, patternContrast, lo, hi, worstContrast ) );
 		}
 		//Uniform light through the Over: the clip white, Light Coupling 1.
 		{
@@ -3365,8 +3415,8 @@ int runTuring( const Perturb& perturb )
 			rig.Set( PT_SEED_FROM_CLIP, 0.0f );
 			rig.Set( PT_LIGHT_COUPLING, 0.0f );
 			rig.Render( 1 );
-			for( int f = 0; f < 240; ++f )
-				rig.Chem( 0.5 );
+			for( double t = 0.0; t < grow; t += 1.0 )
+				rig.Chem( 1.0 );
 			auto contrastNow = [ & ]() {
 				const Floats st = rig.State();
 				double mean = 0.0, sq = 0.0;
@@ -3379,10 +3429,10 @@ int runTuring( const Perturb& perturb )
 			};
 			const double before = contrastNow();
 			rig.Set( PT_LIGHT_COUPLING, 1.0f );
-			for( int f = 0; f < 240; ++f )
-				rig.Chem( 0.5 );
+			for( double t = 0.0; t < 0.5 * grow; t += 1.0 )
+				rig.Chem( 1.0 );
 			const double lit = contrastNow();
-			Check( before > 0.1 && lit < 0.1 * before, fmt( "%dx%d  the pattern's contrast %.3f in the dark, %.4f after 120 s under the Over's white clip at Light Coupling 1", raster.w, raster.h, before, lit ) );
+			Check( before > 0.1 && lit < 0.1 * before, fmt( "%dx%d  the pattern's contrast %.3f in the dark, %.4f after %.0f s under the Over's white clip at Light Coupling 1", raster.w, raster.h, before, lit, 0.5 * grow ) );
 		}
 	}
 	return Verdict();
