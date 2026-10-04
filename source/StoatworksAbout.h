@@ -20,7 +20,7 @@ namespace stoatworks::about
     inline constexpr auto guide = "https://stoatworks-labs.com/software/honeydew/guide/";
     inline constexpr auto page = "https://stoatworks-labs.com/software/honeydew/";
     inline constexpr auto repo = "https://github.com/stoatworks-labs/honeydew";
-    inline constexpr auto versionFallback = "v0.1.0";
+    inline constexpr auto versionFallback = "v0.1.1";
 
     inline constexpr auto org = "Stoatworks Labs";
     inline constexpr auto home = "https://stoatworks-labs.com";
