@@ -464,9 +464,9 @@ Params MakeParams( Reaction r, const Recipe& recipe, Catalyst catalyst, Reactor 
 		p[ P_DY_K2 ]    = static_cast< float >( kDye.k2 );
 		p[ P_DY_OH ]    = static_cast< float >( recipe.acidBase );
 		p[ P_DY_O2SAT ] = static_cast< float >( recipe.oxidant );
-		//k_L a of the layer: D / film / depth, times the stirring closure.
-		const double kL  = kDye.DO2 / ( kDye.filmMm * 0.1 );//cm/s
-		const double kLa = kL / std::max( depthMm * 0.1, 1e-3 ) * ( 1.0 + kDye.kStirAeration * stir * stir );
+		//k_L a of the still layer: 2 D / d^2 (Chemistry.h), times the stirring closure.
+		const double dCm = std::max( depthMm * 0.1, 1e-3 );
+		const double kLa = 2.0 * kDye.DO2 / ( dCm * dCm ) * ( 1.0 + kDye.kStirAeration * stir * stir );
 		p[ P_DY_KLA ]    = static_cast< float >( kLa );
 		p[ P_DY_DO2 ]    = static_cast< float >( kDye.DO2 * kCm2PerS_to_Mm2PerS );
 		p[ P_DY_DDYE ]   = static_cast< float >( kDye.Ddye * kCm2PerS_to_Mm2PerS );

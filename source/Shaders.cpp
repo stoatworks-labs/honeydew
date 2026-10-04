@@ -208,40 +208,44 @@ uniform int DiffusionOffForTest;
 uniform int PhotoOffForTest;
 uniform int FuelOffForTest;
 
-//Two-variable linearly implicit Euler: ( I - dt J ) delta = dt F.
-vec2 implicitStep( vec2 F, mat2 J, float dt )
+//ROS2 (Verwer, Spee, Blom & Hundsdorfer 1999), the scheme the harness's
+//double references use: k1 = A^-1 F( s ), k2 = A^-1 ( F( s + dt k1 ) - 2 k1 ),
+//s' = s + 1.5 dt k1 + 0.5 dt k2, A = I - gamma dt J, gamma = 1 + 1/sqrt(2).
+//L-stable and second order, so the stiff bromide is carried and the step's
+//error shrinks as dt^2.
+const float ROS_GAMMA = 1.7071067811865475;
+
+vec3 bzF( vec3 s, float rate, float eps, float epsP, float q, float f, float phi )
 {
-	mat2 A = mat2( 1.0 ) - dt * J;
-	float det = A[ 0 ][ 0 ] * A[ 1 ][ 1 ] - A[ 0 ][ 1 ] * A[ 1 ][ 0 ];
-	if( abs( det ) < 1e-30 )
-		return dt * F;
-	//inverse( A ) * ( dt F ), column-major mat2: A[col][row]
-	vec2 r = dt * F;
-	return vec2( A[ 1 ][ 1 ] * r.x - A[ 1 ][ 0 ] * r.y, -A[ 0 ][ 1 ] * r.x + A[ 0 ][ 0 ] * r.y ) / det;
+	return rate * vec3( ( q * s.y - s.x * s.y + s.x * ( 1.0 - s.x ) ) / eps, ( -q * s.y - s.x * s.y + f * s.z + phi ) / epsP, s.x - s.z );
 }
 
 //The three-variable Oregonator (Chemistry.h): x = HBrO2, y = Br-, z = the
-//oxidised catalyst, on Tyson's scales; B.x marks a pacemaker site. A 3x3
-//linearly implicit Euler step: ( I - dt J ) delta = dt F.
+//oxidised catalyst, on Tyson's scales; B.x marks a pacemaker site.
 void stepBZ( inout vec4 a, inout vec4 b )
 {
 	float eps = P( P_BZ_EPS ), epsP = P( P_BZ_EPSP ), q = P( P_BZ_Q ), f = P( P_BZ_F );
 	float phi  = PhotoOffForTest == 1 ? 0.0 : P( P_BZ_PHIMAX ) * Light;
 	float fuel = FuelOffForTest == 1 ? 1.0 : clamp( a.w, 0.0, 1.0 );
 	float rate = fuel / P( P_BZ_T0 ) * ( 1.0 + P( P_BZ_PACE ) * b.x );
-	float x = a.x, y = a.y, z = a.z;
-	vec3 F = rate * vec3( ( q * y - x * y + x * ( 1.0 - x ) ) / eps, ( -q * y - x * y + f * z + phi ) / epsP, x - z );
+	vec3 s = a.xyz;
 	//Column-major: J[col][row] = dF_row / d(col).
-	mat3 J = mat3( rate * ( 1.0 - 2.0 * x - y ) / eps, rate * ( -y ) / epsP, rate,
-	               rate * ( q - x ) / eps, rate * ( -q - x ) / epsP, 0.0,
+	mat3 J = mat3( rate * ( 1.0 - 2.0 * s.x - s.y ) / eps, rate * ( -s.y ) / epsP, rate,
+	               rate * ( q - s.x ) / eps, rate * ( -q - s.x ) / epsP, 0.0,
 	               0.0, rate * f / epsP, -rate );
-	mat3 A = mat3( 1.0 ) - Dt * J;
-	vec3 d = inverse( A ) * ( Dt * F );
-	a.x = max( x + d.x, 0.0 );
-	a.y = max( y + d.y, 0.0 );
-	a.z = max( z + d.z, 0.0 );
+	mat3 Ai = inverse( mat3( 1.0 ) - ROS_GAMMA * Dt * J );
+	vec3 k1 = Ai * bzF( s, rate, eps, epsP, q, f, phi );
+	vec3 k2 = Ai * ( bzF( s + Dt * k1, rate, eps, epsP, q, f, phi ) - 2.0 * k1 );
+	vec3 n  = s + 1.5 * Dt * k1 + 0.5 * Dt * k2;
+	a.xyz   = max( n, vec3( 0.0 ) );
 	if( FuelOffForTest == 0 )
-		a.w = max( a.w - Dt * P( P_BZ_FUELRATE ) * z, 0.0 );
+		a.w = max( a.w - Dt * P( P_BZ_FUELRATE ) * s.z, 0.0 );
+}
+
+vec2 leF( vec2 s, float rate, float A, float B, float sigma, float w )
+{
+	float r = s.x * s.y / ( 1.0 + s.x * s.x );
+	return rate * vec2( ( A - s.x - 4.0 * r - w ) / sigma, B * ( s.x - r + w ) );
 }
 
 void stepCDIMA( inout vec4 a, inout vec4 b )
@@ -249,15 +253,14 @@ void stepCDIMA( inout vec4 a, inout vec4 b )
 	float A = P( P_LE_A ), B = P( P_LE_B ), sigma = P( P_LE_SIGMA );
 	float w    = PhotoOffForTest == 1 ? 0.0 : P( P_LE_WMAX ) * Light;
 	float rate = 1.0 / P( P_LE_TSCALE );
-	float u = a.x, v = a.y;
-	float den = 1.0 + u * u;
-	float r   = u * v / den;
-	float drdu = v * ( 1.0 - u * u ) / ( den * den ), drdv = u / den;
-	vec2 F     = rate * vec2( ( A - u - 4.0 * r - w ) / sigma, B * ( u - r + w ) );
+	vec2 s = a.xy;
+	float den = 1.0 + s.x * s.x;
+	float drdu = s.y * ( 1.0 - s.x * s.x ) / ( den * den ), drdv = s.x / den;
 	mat2 J     = mat2( rate * ( -1.0 - 4.0 * drdu ) / sigma, rate * B * ( 1.0 - drdu ), rate * ( -4.0 * drdv ) / sigma, rate * B * ( -drdv ) );
-	vec2 d     = implicitStep( F, J, Dt );
-	a.x = max( u + d.x, 0.0 );
-	a.y = max( v + d.y, 0.0 );
+	mat2 Ai    = inverse( mat2( 1.0 ) - ROS_GAMMA * Dt * J );
+	vec2 k1    = Ai * leF( s, rate, A, B, sigma, w );
+	vec2 k2    = Ai * ( leF( s + Dt * k1, rate, A, B, sigma, w ) - 2.0 * k1 );
+	a.xy       = max( s + 1.5 * Dt * k1 + 0.5 * Dt * k2, vec2( 0.0 ) );
 }
 
 void stepClock( inout vec4 a, inout vec4 b )

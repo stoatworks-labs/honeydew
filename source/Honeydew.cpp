@@ -1107,7 +1107,9 @@ FFResult HoneydewPlugin::ProcessOpenGL( ProcessOpenGLStruct* pgl )
 			//Switched (no thiosulfate, iodine present) and not yet re-dosed.
 			if( meanA[ 3 ] <= 1e-7 && meanA[ 2 ] > 1e-6 && syncArmed )
 			{
-				const double tChem = toNext * lapse;
+				//The dose lands at the START of this frame's chemistry, one host
+				//frame before `now`: the switch has that frame more to run.
+				const double tChem = ( toNext + hostDt ) * lapse;
 				const double H     = wrongDose ? 0.0 : recipe.acidBase;
 				double S0          = chem::ClockDoseForSwitch( tChem, meanA[ 0 ], meanA[ 1 ], H );
 				const double capS  = 1.98 * meanA[ 0 ];
@@ -1136,7 +1138,7 @@ FFResult HoneydewPlugin::ProcessOpenGL( ProcessOpenGLStruct* pgl )
 			{
 				const double kRed = params_[ chem::P_DY_K2 ] * params_[ chem::P_DY_OH ] * std::max( meanA[ 1 ], 0.0 );
 				//The fade (the oxidised half gone) follows the oxygen's end by ln 2 / kRed.
-				const double tChem = toNext * lapse - ( kRed > 0.0 ? std::log( 2.0 ) / kRed : 0.0 );
+				const double tChem = ( toNext + hostDt ) * lapse - ( kRed > 0.0 ? std::log( 2.0 ) / kRed : 0.0 );
 				double O2 = chem::DyeOxygenForDuration( tChem, wrongDose ? 0.0 : params_[ chem::P_DY_OH ], std::max( meanA[ 1 ], 0.0 ), ctot );
 				if( wrongDose )
 					O2 = params_[ chem::P_DY_O2SAT ];
@@ -1169,7 +1171,9 @@ FFResult HoneydewPlugin::ProcessOpenGL( ProcessOpenGLStruct* pgl )
 				const double tPeak = chem::ChameleonGreenPeakTime( wrongDose ? 0.5 * recipe.acidBase : recipe.acidBase, std::max( meanA[ 3 ], 0.0 ) );
 				const double tReal = tPeak / lapse;
 				const double wait  = transport.SecondsToNext( bar, tReal + kSyncLead );
-				chameleonDoseAt    = now + wait - tReal;
+				//The dose lands at the start of the frame that fires, a frame
+				//before its `now`: aim half a frame late to centre it.
+				chameleonDoseAt    = now + wait - tReal + 0.5 * hostDt;
 				lastDoseAim        = wait;
 			}
 			if( chameleonDoseAt >= 0.0 && now >= chameleonDoseAt )

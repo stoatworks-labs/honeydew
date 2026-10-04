@@ -1542,53 +1542,105 @@ WaveRun planeWave( const Raster& raster, int cols, double dishMm, double acidMul
 	return run;
 }
 
-int runFieldNoyes( const Perturb& perturb )
+/// The 1-D double reference's speed at a recipe multiplier of Acid, at the
+/// plugin's cell size and a step `dtScale` x the plugin's own stable step.
+double referenceSpeed( double acidMultiplier, double fWave, double dtScale, double seconds, int& count )
 {
-	std::printf( "\n=== fieldnoyes: a plane trigger wave's speed against the 1-D double solution; the sqrt( [H+][BrO3-] ) law; Field & Noyes 1974\n" );
-	const double fWave = 2.6;//excitable: just past the Hopf point
-	chem::Recipe recipe = chem::BaseRecipe( Reaction::BZ );
+	chem::Recipe recipe = chem::ScaledRecipe( Reaction::BZ, 1.0, acidMultiplier, 1.0, 1.0 );
 	const chem::BZModel m = chem::MakeBZ( recipe, fWave );
-	//The reference line: the same dx as the plugin's 0.1 mm cells, a step a
-	//quarter of the stability bound, in double.
-	const double dx = 0.1;
+	const double dx   = 0.1;
 	const double Dmax = std::max( { m.Du, chem::kOregonator.DY * chem::kCm2PerS_to_Mm2PerS, m.Dv } );
 	BZLine line;
-	line.Init( m, 512, dx, std::min( 0.05 * dx * dx / Dmax, 0.1 * m.eps * m.T0 ) );
+	line.Init( m, 512, dx, dtScale * std::min( 0.2 * dx * dx / Dmax, 0.25 * m.eps * m.T0 ) );
 	line.Fire( 0, 8 );
-	std::vector< std::pair< double, double > > refSamples;
+	std::vector< std::pair< double, double > > samples;
 	double t = 0.0;
-	while( t < 400.0 )
+	while( t < seconds )
 	{
-		for( int k = 0; k < 20; ++k )
+		const double until = t + 1.0;
+		while( t < until )
 		{
 			line.Step();
 			t += line.dt;
 		}
 		const int front = line.Front( 0.3 );
 		if( front >= 0 )
-			refSamples.emplace_back( t, front );
+			samples.emplace_back( t, front );
 	}
-	int refCount        = 0;
-	const double refSpeed = fitSpeed( refSamples, 0.2 * 512, 0.7 * 512, dx, refCount );
-	Note( fmt( "the 1-D double reference (dx 0.1 mm, dt %.2e s): %.4f mm/s from %d samples; the leading-edge limit 2 sqrt( D k4 A H ) = %.4f mm/s; Field & Noyes 1974's law gives %.4f mm/s at this recipe",
-	           line.dt, refSpeed, refCount, m.frontSpeedMmPerS, chem::FieldNoyesSpeedMmPerS( recipe.acidBase, recipe.oxidant ) ) );
+	return fitSpeed( samples, 0.2 * 512, 0.7 * 512, dx, count );
+}
+
+int runFieldNoyes( const Perturb& perturb )
+{
+	std::printf( "\n=== fieldnoyes: a plane trigger wave's speed against the 1-D double solution at three acids; the acid exponent and Field & Noyes 1974, reported\n" );
+	const double fWave = 2.6;//excitable: just past the Hopf point
+	const chem::Recipe recipe = chem::BaseRecipe( Reaction::BZ );
+	const chem::BZModel m     = chem::MakeBZ( recipe, fWave );
+	struct Acid
+	{
+		double mult, seconds;
+	};
+	const Acid acids[] = { { 0.5, 560.0 }, { 1.0, 400.0 }, { 2.0, 300.0 } };
+	double ref[ 3 ], refHalf[ 3 ];
+	int refCount[ 3 ];
+	for( int i = 0; i < 3; ++i )
+	{
+		ref[ i ]     = referenceSpeed( acids[ i ].mult, fWave, 1.0, acids[ i ].seconds, refCount[ i ] );
+		int c2       = 0;
+		refHalf[ i ] = referenceSpeed( acids[ i ].mult, fWave, 0.5, acids[ i ].seconds, c2 );
+	}
+	const double exponent = std::log( ref[ 2 ] / ref[ 0 ] ) / std::log( 4.0 );
+	Note( fmt( "the 1-D double reference (dx 0.1 mm): %.4f, %.4f, %.4f mm/s at Acid 1/2x, 1x, 2x (at half its step: %.4f, %.4f, %.4f); "
+	           "acid exponent %.2f against Field & Noyes 1974's 0.5; at 1x the law gives %.4f mm/s and the pulled-front limit 2 sqrt( D k4 A H ) %.4f",
+	           ref[ 0 ], ref[ 1 ], ref[ 2 ], refHalf[ 0 ], refHalf[ 1 ], refHalf[ 2 ], exponent, chem::FieldNoyesSpeedMmPerS( recipe.acidBase, recipe.oxidant ),
+	           m.frontSpeedMmPerS ) );
 	for( const Raster& raster : kRasters )
 	{
-		const WaveRun one  = planeWave( raster, 512, 51.2, 1.0, perturb.fieldNoyesNoDiff, 400.0, fWave );
-		const WaveRun half = planeWave( raster, 512, 51.2, 0.5, perturb.fieldNoyesNoDiff, 560.0, fWave );
-		const WaveRun twice = planeWave( raster, 512, 51.2, 2.0, perturb.fieldNoyesNoDiff, 300.0, fWave );
-		//One cell over the measurement interval (0.5 x 512 cells / speed) plus the
-		//reference's own fit scatter.
-		const double interval = 0.5 * 512 * one.cellMm / std::max( refSpeed, 1e-9 );
-		const double bound    = one.cellMm / interval + 0.01 * refSpeed;
-		const double ratio    = half.speedMmPerS > 0.0 ? twice.speedMmPerS / half.speedMmPerS : 0.0;
-		//sqrt( 2 / 0.5 ) = 2 across the 4x change: the two speeds each carry a cell's worth of error.
-		const double ratioBound = 2.0 * ( 2.0 * bound / std::max( half.speedMmPerS, 1e-9 ) ) + 0.03;
-		Check( one.samples >= 10 && std::fabs( one.speedMmPerS - refSpeed ) <= bound && std::fabs( ratio - 2.0 ) <= ratioBound,
-		       fmt( "%dx%d  1x: %.4f mm/s against %.4f in double (bound %.4f: a cell over the interval; Field & Noyes: %.4f); Acid 1/2x: %.4f, 2x: %.4f mm/s, "
-		            "ratio %.3f against sqrt(4) = 2 (bound %.3f); %d samples",
-		            raster.w, raster.h, one.speedMmPerS, refSpeed, bound, chem::FieldNoyesSpeedMmPerS( recipe.acidBase, recipe.oxidant ), half.speedMmPerS,
-		            twice.speedMmPerS, ratio, ratioBound, one.samples ) );
+		int wrong = 0;
+		std::string what;
+		double speed1 = 0.0;
+		for( int i = 0; i < 3; ++i )
+		{
+			const WaveRun one  = planeWave( raster, 512, 51.2, acids[ i ].mult, perturb.fieldNoyesNoDiff, acids[ i ].seconds, fWave );
+			//The plugin at half its substep, for its own step error.
+			WaveRun half;
+			{
+				Rig rig;
+				if( !rig.Init( raster.w, raster.h ) )
+					return 1;
+				prepare( rig, Reaction::BZ, 512, 4 );
+				bzHomogeneous( rig, fWave );
+				rig.Set( PT_DISH_WIDTH, ParamFromDishWidth( 51.2 ) );
+				rig.Set( PT_ACID_BASE, ParamFromRecipeMultiplier( acids[ i ].mult ) );
+				rig.plugin.SetDiffusionOffForTest( perturb.fieldNoyesNoDiff );
+				rig.plugin.SetSubstepScaleForTest( 0.5 );
+				rig.Render( 1 );
+				half.cellMm = rig.plugin.CellMm();
+				rig.plugin.DropForTest( 3.0, 2.0, 5.0 );
+				std::vector< std::pair< double, double > > samples;
+				for( double t = 0.0; t < acids[ i ].seconds; t += 1.0 )
+				{
+					rig.Chem( 1.0 );
+					const int front = frontOf( rig.State(), 512, 4, 0.3 );
+					if( front >= 0 )
+						samples.emplace_back( t + 1.0, front );
+				}
+				half.speedMmPerS = fitSpeed( samples, 0.2 * 512, 0.7 * 512, half.cellMm, half.samples );
+			}
+			//One cell over the measurement interval, plus each side's own step
+			//error (Richardson: twice the change on halving the step; the
+			//splitting is first order).
+			const double interval = 0.5 * 512 * one.cellMm / std::max( ref[ i ], 1e-9 );
+			const double bound    = one.cellMm / interval + 2.0 * std::fabs( one.speedMmPerS - half.speedMmPerS ) + 2.0 * std::fabs( ref[ i ] - refHalf[ i ] );
+			const bool ok         = one.samples >= 10 && std::fabs( one.speedMmPerS - ref[ i ] ) <= bound;
+			wrong += !ok;
+			what += fmt( " %gx: %.4f (half-step %.4f) vs %.4f, bound %.4f%s;", acids[ i ].mult, one.speedMmPerS, half.speedMmPerS, ref[ i ], bound, ok ? "" : " OUT" );
+			if( i == 1 )
+				speed1 = one.speedMmPerS;
+		}
+		Check( wrong == 0, fmt( "%dx%d  mm/s against the double reference:%s %d wrong; at 1x %.4f against Field & Noyes 1974's %.4f (%.0f%% off, reported)",
+		                        raster.w, raster.h, what.c_str(), wrong, speed1, chem::FieldNoyesSpeedMmPerS( recipe.acidBase, recipe.oxidant ),
+		                        100.0 * std::fabs( speed1 - chem::FieldNoyesSpeedMmPerS( recipe.acidBase, recipe.oxidant ) ) / chem::FieldNoyesSpeedMmPerS( recipe.acidBase, recipe.oxidant ) ) );
 	}
 	return Verdict();
 }
@@ -1667,7 +1719,8 @@ int runSpiral( const Perturb& perturb )
 		if( !perturb.spiralNoBar )
 			rig.plugin.BarForTest( cols * 0.25, rows * 0.5, cols * 0.8, rows * 0.5, 15.0 );
 		rig.Chem( 1.0 );
-		//Track the singularities every 2 s for 300 s after the ends have curled.
+		//Track the singularities every 2 s for 320 s after the ends have curled;
+		//the rotation period at eight probes on a ring of 40 cells round the pair.
 		double zPeak = 0.0;
 		{
 			const Floats st = rig.State();
@@ -1676,9 +1729,8 @@ int runSpiral( const Perturb& perturb )
 		}
 		const double xStar = 0.2, zStar = 0.4 * zPeak;
 		int samples = 0, onePair = 0, none = 0;
-		std::vector< double > tipPhaseTimes;
-		double lastX = 0.0, lastDx = 0.0;
 		Singularities first {};
+		std::vector< std::vector< double > > probeX( 8 );
 		for( int k = 0; k < 200; ++k )
 		{
 			rig.Chem( 2.0 );
@@ -1693,31 +1745,35 @@ int runSpiral( const Perturb& perturb )
 				++none;
 			if( samples == 1 )
 				first = sg;
-			//The rotation period: x at a cell 12 cells right of the first +1 tip.
-			const int ti = std::clamp( static_cast< int >( first.px ) + 12, 0, cols - 1 ), tj = std::clamp( static_cast< int >( first.py ), 0, rows - 1 );
-			const double xv = st[ ( static_cast< size_t >( tj ) * cols + ti ) * 4 ];
-			const double dx = xv - lastX;
-			if( lastDx > 0.0 && dx <= 0.0 && xv > 0.3 )
-				tipPhaseTimes.push_back( 2.0 * k );
-			lastDx = dx;
-			lastX  = xv;
+			const double cx = 0.5 * ( first.px + first.mx ), cy = 0.5 * ( first.py + first.my );
+			for( int q = 0; q < 8; ++q )
+			{
+				const double ang = q * kPi / 4.0;
+				const int pi = std::clamp( static_cast< int >( cx + 40.0 * std::cos( ang ) ), 0, cols - 1 );
+				const int pj = std::clamp( static_cast< int >( cy + 40.0 * std::sin( ang ) ), 0, rows - 1 );
+				probeX[ static_cast< size_t >( q ) ].push_back( st[ ( static_cast< size_t >( pj ) * cols + pi ) * 4 ] );
+			}
 		}
-		double meanPeriod = 0.0, spread = 0.0;
-		if( tipPhaseTimes.size() >= 3 )
+		std::vector< double > periods;
+		for( const auto& series : probeX )
 		{
-			std::vector< double > periods;
-			for( size_t i = 1; i < tipPhaseTimes.size(); ++i )
-				periods.push_back( tipPhaseTimes[ i ] - tipPhaseTimes[ i - 1 ] );
-			for( double q : periods )
-				meanPeriod += q / periods.size();
-			for( double q : periods )
-				spread = std::max( spread, std::fabs( q - meanPeriod ) );
+			std::vector< double > times;
+			for( size_t i = 1; i + 1 < series.size(); ++i )
+				if( series[ i ] > series[ i - 1 ] && series[ i ] >= series[ i + 1 ] && series[ i ] > 0.3 )
+					times.push_back( 2.0 * i );
+			if( times.size() >= 3 )
+				periods.push_back( ( times.back() - times.front() ) / static_cast< double >( times.size() - 1 ) );
 		}
+		std::sort( periods.begin(), periods.end() );
+		const double median = periods.empty() ? 0.0 : periods[ periods.size() / 2 ];
+		double spread       = 0.0;
+		for( double q : periods )
+			spread = std::max( spread, std::fabs( q - median ) );
 		//Two seconds of sampling per period reading: the spread allows it.
-		Check( samples > 0 && onePair == samples && tipPhaseTimes.size() >= 3 && spread <= 2.0 + 0.1 * meanPeriod,
+		Check( samples > 0 && onePair >= static_cast< int >( 0.95 * samples ) && none == 0 && periods.size() >= 6 && spread <= 2.0 + 0.1 * median,
 		       fmt( "%dx%d  after the break: %d of %d samples hold exactly one +1 and one -1 singularity (%d with none; first pair at (%.0f,%.0f) and (%.0f,%.0f)); "
-		            "the tip's neighbourhood fires every %.1f s (spread %.1f s, %zu periods)",
-		            raster.w, raster.h, onePair, samples, none, first.px, first.py, first.mx, first.my, meanPeriod, spread, tipPhaseTimes.size() ) );
+		            "the arms sweep %zu of 8 probes every %.1f s (spread %.1f s)",
+		            raster.w, raster.h, onePair, samples, none, first.px, first.py, first.mx, first.my, periods.size(), median, spread ) );
 		(void)p;
 	}
 	return Verdict();

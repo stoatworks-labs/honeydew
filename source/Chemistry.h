@@ -224,11 +224,13 @@ struct DyeKinetics
 	double DO2   = 2.11e-5;///< cm^2/s, Pons 2000/2008
 	double Ddye  = 4.0e-6; ///< cm^2/s, MB+/MBH, Pons 2008 Table I
 	double DGL   = 6.7e-6; ///< cm^2/s, glucose/gluconic acid, Pons 2008 Table I
-	/// The surface film through which oxygen enters a still layer: k_L = D_O2 /
-	/// delta with delta = 0.5 mm, a STAND-IN film thickness (film theory); the
-	/// layer's k_L a is k_L / depth. A Shake multiplies it (kShakeAeration) for
-	/// a moment; Stir multiplies it by ( 1 + kStirAeration Stir^2 ): closures.
-	double filmMm         = 0.5;
+	/// Oxygen enters a STILL layer by diffusion from its free surface; the 2-D
+	/// engine has no depth, so its column takes oxygen at k_L a = 2 D / d^2
+	/// (the mean diffusion distance to the middle of a layer of depth d): a
+	/// CLOSURE, not a measurement. A 1.5 mm layer is then fed faster than it
+	/// consumes at the 1x recipe and stays blue, as a thin dish does; a 7 mm
+	/// layer fades (Pons 2000's blue top layer is 1-3 mm). A Shake multiplies
+	/// it (kShakeAeration) for a moment; Stir by ( 1 + kStirAeration Stir^2 ).
 	double kShakeAeration = 200.0;///< STAND-IN
 	double kStirAeration  = 20.0; ///< STAND-IN
 	/// Indigo carmine's two one-electron steps: the semiquinone forms at the
