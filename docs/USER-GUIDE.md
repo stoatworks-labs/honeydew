@@ -447,7 +447,7 @@ when the chemistry could not keep up with Time-lapse.
 
 ---
 
-## Not in 0.1.0
+## Not in 0.1.1
 
 - **Chemoconvection.** A still blue-bottle layer in a real dish forms convection cells
   (oxygen enters at the top, the oxidised layer is denser and sinks). The depth-resolved

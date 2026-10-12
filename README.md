@@ -347,8 +347,8 @@ The offline harness renders the real plugin classes headlessly:
     ./build/hdtest --stir         mixing decays variance; stirred BZ is in phase
     ./build/hdtest --units        mm/s depend on the cell alone
     ./build/hdtest --timebase     Resolume's 499 million ms clock; the substep cap counts
-    ./build/hdtest --resize --prime --state
-    ./build/hdtest --names --transport --timebase-law   (no GL)
+    ./build/hdtest --resize       (and --prime, --state: one mode per run)
+    ./build/hdtest --names        (and --transport, --timebase-law: one mode per run, no GL)
     ./build/hdtest --negative     every check above, against a wrong model
     ./build/hdtest --offline      the no-GL subset and its negative controls (what CI runs)
     tools/mutate.sh               one character changed, a check must fail

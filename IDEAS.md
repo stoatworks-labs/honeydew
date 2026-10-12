@@ -30,7 +30,8 @@ pick them up with the context intact. None of these is promised.
   10 to 40 °C).
 - **CO₂ bubbles** in BZ (the malonic acid's oxidation makes them; a nucleation
   closure and a bubble sprite layer).
-- **An OpenFX port**, **a browser demo**, **the user guide**.
+- **An OpenFX port**. (The browser demo and the user guide have since
+  shipped.)
 
 ## Found while building
 
