@@ -1,13 +1,14 @@
 # Honeydew user guide
 
 Honeydew is **a dish of real chemistry on a lightbox, for [Resolume](https://resolume.com)
-Arena and Avenue**, as two FFGL plugins in one download: **SW Honeydew**, a source that is the
-dish on its lightbox, and **SW Honeydew Over**, an effect whose clip is the lightbox, filtered
-through the dish and, where the chemistry is photosensitive, acting on it. Nothing is drawn as a
-picture of a reaction. Eight published reactions run in a thin layer, in mol/L and seconds and
-millimetres, and the colour of every pixel is the lightbox's light through the layer's
-absorption: the red of ferroin and the blue of ferriin, the amber of iodine, the blue-black of
-starch–iodine, the purple of permanganate, all fall out of concentrations.
+Arena and Avenue**, as two FFGL plugins in one download: **SW Honeydew**, a source that's the
+dish on its lightbox, and **SW Honeydew Over**, an effect where your clip is the lightbox,
+filtered through the dish and, where the chemistry is photosensitive, acting on it.
+
+None of it is a drawing of a reaction. Eight published reactions run in a thin layer, in mol/L
+and seconds and millimetres, and the colour of every pixel is the lightbox's light through the
+layer's absorption. The red of ferroin and the blue of ferriin, the amber of iodine, the
+blue-black of starch–iodine and the purple of permanganate all fall out of the concentrations.
 
 ![A ferroin Belousov–Zhabotinsky dish after fifteen minutes: pale blue oxidised rings spreading from pacemakers across a red reduced layer, meeting at cusps where they annihilate](hero.png)
 
@@ -15,29 +16,37 @@ starch–iodine, the purple of permanganate, all fall out of concentrations.
 by the offline harness rather than captured from Resolume: a 60 mm wide ferroin BZ layer in
 Flow, pacemakers firing target waves that annihilate where they meet.*
 
-> **Before you rely on this:** at **v0.1.1**, and honestly early. (0.1.1 adds the
+> **Before you rely on this:** it's at **v0.1.1**, and still early days. (0.1.1 adds the
 > Excitability control, so Break Wave's spirals are reachable, and a fresh dish stirred hard
-> starts on its own; a 0.1.0 composition looks the same.) The chemistry is
-> measured rather than asserted, by a harness that drives the real plugin classes headlessly at
-> two rasters, and holds the plugin to its own literature. A stirred ferroin dish's period, read
-> from the pixels, is 101.19 s against 100.97 s from the three-variable Oregonator integrated in
-> double precision; a trigger wave's speed is 0.1017 mm/s against 0.1008 from the one-dimensional
+> gets going on its own; a 0.1.0 composition looks the same.) The chemistry is measured rather
+> than asserted, by a harness that drives the real plugin classes headlessly at two rasters
+> and holds the plugin to its own literature. A stirred ferroin dish's period, read from the
+> pixels, is 101.19 s against 100.97 s from the three-variable Oregonator integrated in double
+> precision. A trigger wave's speed is 0.1017 mm/s against 0.1008 from the one-dimensional
 > solution of the same equations, at three acid strengths (at Excitability 0.69, through the
-> control); a spiral pair wound from the defaults plus Excitability 0.7, a Drop and Break Wave
-> keeps both its cores through 160 of 160 samples, turning every 97 s, and the same press at the
-> default leaves none; the iodine clock snaps at 25.25 s
-> against the Harcourt–Esson closed form's 25.01; eleven batch Briggs–Rauscher oscillations
-> average 248.00 s apart against 248.04 from the De Kepper–Epstein mechanism; the Turing pattern's wavelength, read off the
-> state, is 0.122 mm against the Lengyel–Epstein model's 0.1205; every pixel of a uniform dish
-> is within 2×10⁻⁷ of a double-precision Beer–Lambert integral through the CIE 1931 observer.
+> control). A spiral pair wound from the defaults plus Excitability 0.7, a Drop and Break Wave
+> keeps both its cores through 160 of 160 samples, turning every 97 s, and the same press at
+> the default leaves none. The iodine clock snaps at 25.25 s against the Harcourt–Esson closed
+> form's 25.01. Eleven batch Briggs–Rauscher oscillations average 248.00 s apart against 248.04
+> from the De Kepper–Epstein mechanism. The Turing pattern's wavelength, read off the state, is
+> 0.122 mm against the Lengyel–Epstein model's 0.1205. Every pixel of a uniform dish is within
+> 2×10⁻⁷ of a double-precision Beer–Lambert integral through the CIE 1931 observer.
 > Twenty-three deliberately wrong models are each shown to fail their check, one-character
-> mutations of the shipped shaders are caught, and all 56 parameters over both plugins are shown
-> to change the picture. Eleven of the twenty absorption spectra and some rate constants are stand-ins,
-> each named in the chemistry notes. **The chemoconvection cells of a still blue-bottle layer
-> are not built**, and Briggs–Rauscher is stirred only.
-> It has **never been loaded into Resolume on macOS** — the one host it has run in there is the
+> mutations of the shipped shaders are caught, and all 56 parameters over both plugins are
+> shown to change the picture. Eleven of the twenty absorption spectra and some rate constants
+> are stand-ins, each named in the chemistry notes. **The chemoconvection cells of a still
+> blue-bottle layer aren't built**, and Briggs–Rauscher is stirred only.
+> It's **never been loaded into Resolume on macOS**: the one host it's run in there is the
 > fleet's own test host, `oxbow`, for 120 frames each.
-> On Windows both plugins have been loaded: a build of this source loads, registers and renders in Resolume Arena 7.27.1 on software rendering (win-lab, Mesa llvmpipe, no GPU, no sound device), with every control matching what the plugins declare (33 and 36 host controls in 0.1.1), Arena's log clean, in the fleet's Arena gate: 15 of 15 checks, the audio rows skipped, for 0.1.0 and again for 0.1.1. Because the dish's waves move every frame, no two grabs of the picture are alike, so the gate could confirm only some controls one at a time: in 0.1.1, 10 of the source's and 15 of the effect's, the rest inconclusive (none dead). The harness's own sweep (all 56 parameters move the picture) carries the rest. Software rendering says nothing about a GPU or about speed.
+> On Windows both plugins have been loaded. A build of this source loads, registers and renders
+> in Resolume Arena 7.27.1 on software rendering (win-lab, Mesa llvmpipe, no GPU, no sound
+> device), with every control matching what the plugins declare (33 and 36 host controls in
+> 0.1.1) and Arena's log clean, in the fleet's Arena gate: 15 of 15 checks, the audio rows
+> skipped, for 0.1.0 and again for 0.1.1. The dish's waves move every frame, so no two grabs of
+> the picture are alike, and the gate could only confirm some controls one at a time: in 0.1.1,
+> 10 of the source's and 15 of the effect's, with the rest inconclusive (none dead). The
+> harness's own sweep (all 56 parameters move the picture) covers the rest. Software rendering
+> says nothing about a GPU or about speed.
 > Try it on a spare layer before you put it in a show.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
@@ -57,10 +66,10 @@ Windows  %USERPROFILE%\Documents\Resolume Arena\Extra Effects\
 Avenue uses the same layout under its own folder name. SW Honeydew appears among the sources
 and SW Honeydew Over in the effects browser.
 
-The macOS download is a universal build (Apple silicon and Intel), as a `.dmg` or a `.zip`. It
-is Developer ID-signed and notarised by the release pipeline after publication, so the bundles
-simply load; if macOS refuses a download, it predates the signing — download it again. The
-Windows download is an x64 installer or a `.zip`. It is not code-signed, so the installer trips
+The macOS download is a universal build (Apple silicon and Intel), as a `.dmg` or a `.zip`. It's
+Developer ID-signed and notarised by the release pipeline after publication, so the bundles
+just load. If macOS refuses a download, it's from before the signing, so download it again. The
+Windows download is an x64 installer or a `.zip`. It isn't code-signed, so the installer trips
 SmartScreen once: **More info** → **Run anyway**.
 
 ---
@@ -70,7 +79,7 @@ SmartScreen once: **More info** → **Run anyway**.
 The dish is a grid of cells, each holding the concentrations of the reaction's species. Every
 frame, each cell reacts by the published mechanism at its cited rate constants, and the
 species diffuse into their neighbours at their diffusion coefficients, across a dish whose width
-is in millimetres. That is all. Nobody draws the rings:
+is in millimetres. That's it. Nobody draws the rings:
 
 | what you see | why |
 | --- | --- |
@@ -83,11 +92,11 @@ is in millimetres. That is all. Nobody draws the rings:
 | **a colour that comes back when you shake** | the blue-bottle family: air re-oxidises the dye, sugar reduces it again as it stands |
 | **rings of purple, green, brown** | a drop of permanganate reduced from its thin edge inwards |
 
-And the colour is the physics, not a palette. Each coloured species has a molar absorption
-spectrum; the layer's transmittance is Beer–Lambert through its Depth; the picture is the
-lightbox's spectrum through that, seen by the standard observer. So a deeper layer is a darker,
-more saturated one, two dyes seen together make the colour they would in a beaker, and the Over
-filters your clip the way a real dish on a real lightbox would.
+And the colour comes from the physics rather than a palette. Each coloured species has a molar
+absorption spectrum, the layer's transmittance is Beer–Lambert through its Depth, and the
+picture is the lightbox's spectrum through that, seen by the standard observer. So a deeper
+layer is a darker, more saturated one, two dyes seen together make the colour they would in a
+beaker, and the Over filters your clip the way a real dish on a real lightbox would.
 
 ---
 
@@ -129,29 +138,28 @@ a Break Wave winds a pair of spirals turning every 97 s on the default dish. **C
 chooses the colour pair and the photosensitivity: *Ferroin* is red (reduced) and blue
 (oxidised), the classic; *Ru(bpy)3* is orange and pale green, and light makes bromide in it, so
 a lit region is inhibited and waves stop at its edge (the Over's clip, through Light Coupling);
-*Cerium* is colourless and yellow. More **Acid or Base** makes faster waves; **Reductant**
-(malonic acid) sets the period. In Batch the malonic acid is spent over about an hour of
-chemistry and the dish goes quiet; Flow (the default) feeds it for ever.
+*Cerium* is colourless and yellow. More **Acid or Base** makes faster waves, and **Reductant**
+(malonic acid) sets the period. In Batch the malonic acid gets used up over about an hour of
+chemistry and the dish goes quiet; Flow (the default) keeps feeding it forever.
 
 **Briggs–Rauscher.** Iodate, hydrogen peroxide, malonic acid, manganese, acid and starch,
 stirred: **colourless → amber → blue-black** and round again. The plugin runs the De
 Kepper–Epstein mechanism, ten species, on the CPU in double precision, and **its period is the
-mechanism's, minutes**: in Batch the first cycle takes about two chemical minutes and each one
-after takes longer, to about ten, as the reagents run down; in Flow a steady 140 s. That is
-not the few seconds of a classroom beaker, so put **Time-lapse** at 100× or more to see it
-cycle. In Batch it runs down after eleven cycles (about 40 chemical minutes) and stays
-blue-black; Flow keeps it going. It is **stirred only** in
-this version: Stir, Drop, Break Wave and the vessel's shape do nothing to it, and it has no
-waves.
+mechanism's, minutes**. In Batch the first cycle takes about two chemical minutes and each one
+after takes longer, up to about ten, as the reagents run down; in Flow it's a steady 140 s.
+That's a long way off the few seconds of a classroom beaker, so put **Time-lapse** at 100× or
+more to see it cycle. In Batch it runs down after eleven cycles (about 40 chemical minutes) and
+stays blue-black; Flow keeps it going. It's **stirred only** in this version: Stir, Drop, Break
+Wave and the vessel's shape do nothing to it, and it has no waves.
 
-**Iodine Clock.** Hydrogen peroxide oxidises iodide slowly; thiosulfate turns the iodine straight
-back; when the thiosulfate is gone the starch snaps the layer **colourless → blue-black** in a
-moment. It is a clock, not an oscillator: at the 1× recipe the snap comes at 25 s, at half the
-peroxide 51 s, at twice 12.5 s. The cycle is **dosing**: a **Drop** is a drop of thiosulfate,
-which clears the colour and starts the clock again. A Drop at the 1× recipe is small: after the
-snap, iodine keeps forming, and filming saw a 3 mm Batch layer not visibly clear. **Clock Sync**
-sizes every dose itself, so the next snap lands on the beat or the bar, and it clears every
-time.
+**Iodine Clock.** Hydrogen peroxide oxidises iodide slowly, thiosulfate turns the iodine
+straight back, and when the thiosulfate runs out the starch snaps the layer **colourless →
+blue-black** in a moment. It's a clock, not an oscillator: at the 1× recipe the snap comes at
+25 s, at half the peroxide 51 s, at twice 12.5 s. The cycle is **dosing**: a **Drop** is a drop
+of thiosulfate, which clears the colour and starts the clock again. A Drop at the 1× recipe is
+small. After the snap iodine keeps forming, and in filming a 3 mm Batch layer didn't visibly
+clear. **Clock Sync** sizes every dose itself, so the next snap lands on the beat or the
+bar, and it clears every time.
 
 **CDIMA Turing.** Chlorine dioxide, iodine and malonic acid with starch, as the Lengyel–Epstein
 model: the layer settles into **stationary spots and stripes** at a wavelength the chemistry
@@ -163,11 +171,11 @@ Coupling** 1, the bright parts of the clip print into the pattern as blank areas
 
 **Traffic Light.** Indigo carmine, glucose and sodium hydroxide. Standing, the dye steps down
 **green → red → yellow** (the oxidised dye, its one-electron red form, the two-electron yellow
-leuco form) over about ten chemical minutes; a **Shake** brings air in and runs it back **yellow
-→ red → green** at once. It cycles only because someone keeps shaking it: that is what Shake,
-Auto Drop and Audio Shakes are for. The green is really a blue/yellow pair that moves with the
-base: at ¼× **Acid or Base** the oxidised dye is blue, at 4× yellow. In Batch the glucose is
-spent and each cycle is longer than the last.
+leuco form) over about ten chemical minutes, and a **Shake** brings air in and runs it back
+**yellow → red → green** at once. It only cycles because someone keeps shaking it, which is
+what Shake, Auto Drop and Audio Shakes are for. The green is actually a blue/yellow pair that
+moves with the base: at ¼× **Acid or Base** the oxidised dye is blue, at 4× yellow. In Batch
+the glucose gets used up and each cycle is longer than the last.
 
 **Blue Bottle.** The same chemistry with methylene blue: shaken, **blue**; standing, colourless
 again as the glucose reduces it, about 13 chemical minutes at the 1× recipe (twice the air,
@@ -182,9 +190,9 @@ green → yellow-brown** (Mn VII → Mn VI → colloidal manganese dioxide), gre
 64 s after a dose at the 1× recipe, faster with more base. It runs one way, so the cycle is
 **dosing**: a **Drop** is permanganate and turns the dish purple again; in a still layer the
 drop spreads into rings of the sequence from its thin edge inwards. In Batch the brown colloid
-accumulates dose by dose and the layer grows murkier; Flow washes it out. The blue that
-demonstrations show between purple and green is not in this plugin: permanganate seen through
-manganate reads grey through the measured spectra, and the blue species' chemistry is not
+builds up dose by dose and the layer gets murkier; Flow washes it out. The blue that
+demonstrations show between purple and green isn't in this plugin: permanganate seen through
+manganate reads grey through the measured spectra, and the blue species' chemistry isn't
 cited well enough to model. **Clock Sync** times each dose so the green lands on the beat or the
 bar.
 
@@ -212,7 +220,7 @@ the default so a dish never goes quiet on stage; Batch is the demonstration.
 stoichiometric factor. Below the model's boundary (f 1.78 at the 1× recipe, slider 0.42; higher
 with more acid) the dish oscillates in bulk, faster at the bottom of the slider; past it the
 layer is excitable: quiet and red until a Drop
-starts a wave, and a Break Wave winds spirals. The default is the 0.1.0 dish. It is live: turn
+starts a wave, and a Break Wave winds spirals. The default is the 0.1.0 dish. It's live: turn
 it up on an oscillating dish and the oscillation stops after its next cycle.
 
 **Seed** (1 to 9999, default 1). Which pacemakers (BZ) and which random drop positions. The
@@ -254,7 +262,7 @@ to one colour, and at 1 the dish is a stirred beaker (the BZ oscillates as one, 
 everywhere at once). Stirring also brings in air, so a stirred blue bottle stays blue.
 
 **Time-lapse** (1× to 300×, default 30×). How many chemical seconds pass per real second. Past
-a limit the plugin cannot keep up: it runs the chemistry as fast as it can (96 steps a frame)
+a limit the plugin can't keep up: it runs the chemistry as fast as it can (96 steps a frame)
 and drops the rest rather than bursting, and says so in its log. Stirring brings the limit down
 a long way: a stirred BZ dish at Detail 256 keeps up only to about 32× (at 60× its stirred
 period reads 192 s, not 101), CDIMA on a 10 mm dish to about 200× at Detail 512 and 150× at
@@ -275,8 +283,8 @@ starts a wave), thiosulfate (the clock), air (the dye family), permanganate (the
 **Drop Position** (*Random*, *Centre*; the Over adds *Brightest*: where the clip is brightest).
 
 **Break Wave** (a button). A pipette drawn across the middle third of the dish: it erases every
-wave it crosses and leaves the medium refractory, so each broken end curls into a spiral — with
-**Excitability** in the excitable regime (0.7 is a good setting). At the default the next bulk
+wave it crosses and leaves the medium refractory, so each broken end curls into a spiral, as long
+as **Excitability** is in the excitable regime (0.7 is a good setting). At the default the next bulk
 firing overruns the ends. BZ only.
 
 **Shake** (a button). Shakes the dish: a burst of stirring, and air into the dye family. The
@@ -307,7 +315,7 @@ The Over only:
 
 **Light Coupling** (0 to 1, default 0.5). How much of the clip's brightness the photosensitive
 chemistries see: Ru(bpy)₃ BZ (light inhibits the waves) and CDIMA (light erases the pattern).
-At 0 the chemistry does not depend on the clip at all. Ferroin, cerium and the other reactions
+At 0 the chemistry doesn't depend on the clip at all. Ferroin, cerium and the other reactions
 ignore it.
 
 **Seed From Clip** (on by default). The bright parts of the clip excite the dish when it is
@@ -365,15 +373,15 @@ the transition is seen. Clock Sync does nothing to BZ, Briggs–Rauscher or CDIM
 - **Shake and Drop on the beat.** Audio Shakes on the blue bottle, Audio Drops on the iodine
   clock or the chameleon, or Clock Sync to put the transition itself on the bar.
 - **Light Coupling wants a bright clip.** The dish is a filter, so waves running through a
-  clip's black parts cannot be seen at all, and the brightest parts are inhibited. Filming
-  found nothing visible on dark clips with bright shapes; on a bright clip, fading Light
+  clip's black parts can't be seen at all, and the brightest parts are inhibited. In filming
+  nothing showed on dark clips with bright shapes; on a bright clip, fading Light
   Coupling from 0 up shows the light taking hold. For plain filtering (the dish tinting your
   footage) any clip works; set Light Coupling to 0.
 - **Depth is saturation.** Thin layers (0.5 mm) are pale and fast to read; 7 mm is the beaker.
 - **The Petri Dish vessel shows the lightbox** round the dish: on the source that is a white (or
   LED) disc on black, which layers well with Add or Alpha.
 - **Detail 1024 at 4K costs about 2 ms a frame** on an Apple M4-class GPU, 256 about 1 ms; the
-  grid's cost does not depend on the output resolution.
+  grid's cost doesn't depend on the output resolution.
 
 ---
 
@@ -398,7 +406,7 @@ Drop to start a wave or a cycle.
 bulk and overruns the cut ends. Turn it up to about 0.7, press Drop,
 wait for the ring to reach the middle of the dish, then press Break Wave.
 
-**The excitable dish is quiet and red.** That is what excitable means: nothing happens until a
+**The excitable dish is quiet and red.** That's what excitable means: nothing happens until a
 Drop (or Auto Drop, or Audio Drops) starts a wave. Turn Excitability down for a dish that
 oscillates on its own.
 
@@ -408,11 +416,11 @@ give it twenty chemical minutes, and keep Indicator above 0 (no starch, no patte
 **The blue bottle stays blue.** It is stirred (Stir brings air in), or Flow is feeding oxygen:
 set Stir to 0, **Reactor** to *Batch*, and let it stand. The valentine is the same.
 
-**The valentine never goes blue.** It only is before the first fade; after that it is pink and
-colourless. Press Reset for a fresh blue dish.
+**The valentine never goes blue.** It's only blue before the first fade; after that it's pink
+and colourless. Press Reset for a fresh blue dish.
 
-**Clock Sync is not landing on the bar.** The reaction is one Clock Sync does not act on (BZ,
-Briggs–Rauscher, CDIMA), Resolume's tempo is not reaching the plugin, or the recipe is so slow
+**Clock Sync isn't landing on the bar.** The reaction is one Clock Sync doesn't act on (BZ,
+Briggs–Rauscher, CDIMA), Resolume's tempo isn't reaching the plugin, or the recipe is so slow
 that no dose can land the next bar (the plugin then aims for a later one).
 
 **The Over shows my clip unchanged.** Indicator is at 0 (an empty dish), or Mix is at 0.
@@ -420,14 +428,14 @@ that no dose can land the next bar (the plugin then aims for a later one).
 **The Over's waves never start.** The clip is bright everywhere under Ru(bpy)₃: lower Light
 Coupling, or use Ferroin, which ignores the light.
 
-**It is slow.** Detail 1024 with Time-lapse at 300× on a busy reaction: lower one of them. The
+**It's slow.** Detail 1024 with Time-lapse at 300× on a busy reaction: lower one of them. The
 log says when the plugin is dropping chemical time.
 
 **Neither plugin is in the browser.** Check the folder under Installing, and that Resolume was
 restarted.
 
-**It does nothing at all.** A shader that will not compile looks exactly like that, and the
-real message is in the log:
+**It does nothing at all.** A shader that won't compile looks just like that, and the actual
+error is in the log:
 
 ```
 macOS    ~/Library/Logs/honeydew/honeydew.YYYY-MM-DD.log
@@ -443,11 +451,11 @@ when the chemistry could not keep up with Time-lapse.
 
 - **Chemoconvection.** A still blue-bottle layer in a real dish forms convection cells
   (oxygen enters at the top, the oxidised layer is denser and sinks). The depth-resolved
-  solver for it is not built, and there is no Convection control; a still layer takes oxygen
+  solver for it isn't built, and there's no Convection control; a still layer takes oxygen
   through its surface by a simple closure instead.
 - **Briggs–Rauscher is stirred only.** No waves, no drops, no vessel shape.
 - **The chameleon has no blue.** Permanganate seen through manganate reads grey through the
-  measured spectra; the blue species (hypomanganate) is not modelled.
+  measured spectra; the blue species (hypomanganate) isn't modelled.
 - **Resorufin's fluorescence**, CO₂ bubbles in BZ, temperature, the settling of the
   chameleon's colloid.
 - **No OpenFX version, no browser demo, no presets.**
@@ -462,7 +470,7 @@ when the chemistry could not keep up with Time-lapse.
   chemistry notes; the pacemakers, the stirring, the aeration and the Flow residence are models
   with a stated form.
 - **Briggs–Rauscher's period is the mechanism's**, minutes, not a demonstration's seconds.
-- **There is a browser demo** at [honeydew-demo.stoatworks-labs.com](https://honeydew-demo.stoatworks-labs.com/).
+- **There's a browser demo** at [honeydew-demo.stoatworks-labs.com](https://honeydew-demo.stoatworks-labs.com/).
   It runs the plugin's own code, compiled to WebAssembly, and its own shaders in WebGL2, so it
   behaves as the plugin does; it has no tempo from a host and no audio, and the page lists what
   else differs.
