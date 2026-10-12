@@ -248,9 +248,9 @@ numbers are the same at both rasters, to the digit printed):
 | resize | a same-shape resize keeps the state bit-identical; 16:9 → 4:3 resamples the centre column within 63 of a 646 field |
 | audio | the first frame after a clip trigger, loud, fires nothing; the next onset drops |
 | GL state | viewport, vertex array, array buffer, program, active unit, framebuffer, draw buffer, blend, scissor, clear colour, colour mask, ten texture units, both plugins |
-| negative controls | **20** deliberately wrong models, **all 20** detected |
+| negative controls | **23** deliberately wrong models, **all 23** detected |
 | mutants | **5** one-character changes (three GLSL, two C++), **all 5** caught |
-| dead controls | **54** parameters over both plugins, all live in their context; with the context table emptied 8 go dead and 12 barely alive (AGENTS.md) |
+| dead controls | **56** parameters over both plugins, all live in their context; with the context table emptied 8 go dead and 12 barely alive (AGENTS.md) |
 
 On Apple's software renderer at 320x180 the cheap, state-reading set repeats (Beer,
 Mix 0, the clock, stirring, GL state, resize, priming). The cross-context comparison of

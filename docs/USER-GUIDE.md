@@ -458,7 +458,7 @@ when the chemistry could not keep up with Time-lapse.
   measured spectra; the blue species (hypomanganate) isn't modelled.
 - **Resorufin's fluorescence**, CO₂ bubbles in BZ, temperature, the settling of the
   chameleon's colloid.
-- **No OpenFX version, no browser demo, no presets.**
+- **No OpenFX version, no presets.**
 
 ## Known limits
 
